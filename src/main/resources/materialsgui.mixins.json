@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "dev.kianj.materialsgui.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractContainerScreenAccessor",
+		"AbstractContainerScreenMixin",
+		"MenuScreensMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

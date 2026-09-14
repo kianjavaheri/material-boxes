@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local JDK (see the build instructions in README.md)
+.jdk/
+
+# Minecraft dev run folders. These can hold config/materialsgui/config.json, which contains your Anthropic API key.
+run/
+logs/
+mods/
+
+# Release jars are uploaded to GitHub Releases / CurseForge, not committed
+release/*.jar
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+*.unreadable

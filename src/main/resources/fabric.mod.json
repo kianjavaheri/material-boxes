@@ -1,0 +1,34 @@
+{
+	"schemaVersion": 1,
+	"id": "materialsgui",
+	"version": "${version}",
+	"name": "Material Boxes",
+	"description": "Load a build's material list (paste it, import a Litematica export, or read a screenshot), mark chests, barrels and shulker boxes as Material Boxes, and see what's still missing: red, yellow and green slots, shift-click and Deposit All routing, a missing-materials HUD, and saved lists. Client-side only, works on any server.",
+	"authors": [
+		"kianj"
+	],
+	"license": "MIT",
+	"icon": "assets/materialsgui/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"dev.kianj.materialsgui.MaterialsGuiClient"
+		],
+		"modmenu": [
+			"dev.kianj.materialsgui.compat.ModMenuCompat"
+		]
+	},
+	"mixins": [
+		"materialsgui.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	},
+	"suggests": {
+		"modmenu": "*",
+		"litematica": "*"
+	}
+}

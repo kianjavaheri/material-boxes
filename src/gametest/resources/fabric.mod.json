@@ -1,0 +1,15 @@
+{
+	"schemaVersion": 1,
+	"id": "materialsgui-gametest",
+	"version": "1.0.0",
+	"name": "Material Boxes Game Tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"dev.kianj.materialsgui.gametest.MaterialBoxGameTest"
+		]
+	},
+	"depends": {
+		"materialsgui": "*"
+	}
+}

@@ -1,0 +1,110 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+base {
+	archivesName = 'material-boxes'
+}
+
+repositories {
+	maven {
+		name = 'TerraformersMC'
+		url = 'https://maven.terraformersmc.com/releases/'
+	}
+}
+
+configurations {
+	// Mods placed next to the release jar in the production test run.
+	prodMods {
+		transitive = false
+	}
+	// Fabric API's release jar doesn't include the client game test module the tests run on.
+	prodTestMods {
+		transitive = false
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// Only for the optional settings screen entrypoint; Mod Menu isn't needed at runtime.
+	compileOnly("com.terraformersmc:modmenu:${project.modmenu_version}") {
+		transitive = false
+	}
+
+	prodMods "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	prodTestMods fabricApi.module("fabric-client-gametest-api-v1", project.fabric_api_version)
+
+	testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
+	testImplementation platform("org.junit:junit-bom:5.13.4")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+	useJUnitPlatform()
+}
+
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "materialsgui-gametest"
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+jar {
+	def archivesName = base.archivesName.get()
+	inputs.property "archivesName", archivesName
+
+	from("LICENSE") {
+		rename { "${it}_${archivesName}" }
+	}
+}
+
+// Production checks: the client game tests run against the release jar in a real Fabric install, not the dev classes.
+def gametestJar = tasks.register('gametestJar', Jar) {
+	archiveClassifier = 'gametest'
+	from sourceSets.gametest.output
+}
+
+tasks.register('prodClientGameTest', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+	mods.from(tasks.jar, configurations.prodMods, configurations.prodTestMods, gametestJar)
+	jvmArgs.add('-Dfabric.client.gametest')
+	runDir = layout.buildDirectory.dir('run/prod')
+}
+
+// The same, alongside another set of mods: -PextraModsDir=/path/to/mods (must include Fabric API).
+tasks.register('prodClientGameTestWithMods', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
+	mods.from(tasks.jar, configurations.prodTestMods, gametestJar)
+	if (project.hasProperty('extraModsDir')) {
+		mods.from(fileTree(project.property('extraModsDir')) {
+			include '*.jar'
+			exclude 'materials-gui*', 'material-boxes*'
+		})
+	}
+	jvmArgs.add('-Dfabric.client.gametest')
+	runDir = layout.buildDirectory.dir('run/prod-with-mods')
+}
