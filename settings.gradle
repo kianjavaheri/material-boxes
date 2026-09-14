@@ -9,4 +9,4 @@ pluginManagement {
 	}
 }
 
-rootProject.name = 'materials-gui'
+rootProject.name = 'material-boxes'
