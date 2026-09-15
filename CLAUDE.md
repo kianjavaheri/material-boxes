@@ -38,7 +38,7 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 
 **Data (`data/`).**
 - `Project`: the per-world state, holding the material list, the ordered Material Boxes, `listName` and `replacements`.
-- `ProjectStore`: holds the active `Project` and its computed `Layout`, and saves to `config/materialsgui/projects/<worldKey>.json`. The world key is `sp_<world>` or `mp_<server ip>`.
+- `ProjectStore`: holds the active `Project` and its computed `Layout`, and saves to `config/materialsgui/projects/<worldKey>.json`. The world key is `sp_<save folder>` (not the world's name, which two worlds can share), `mp_<server ip>`, `lan_<name>` or `realm_<name>`. All three stores write through `ModConfig.writeAtomically` (a temp file, then an atomic move).
   - `ProjectStore.changed()`: recomputes, saves, and syncs the active saved list's boxes. Call it after any change.
   - `recompute()`: recomputes only, for live per-frame box-content updates.
 - `SavedLists`: named lists shared by every world, in `config/materialsgui/saved-lists.json`. Each list also stores its boxes per world key. Switching lists swaps `project.boxes`; a list with no boxes in the current world keeps the current ones.
@@ -55,12 +55,16 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 `SlotOverlay`, `SlotTooltip`, `ShiftRouter`, `MaterialsHud` and `MaterialsScreen` all read `ProjectStore.layout()`, so don't duplicate this logic.
 
 **Which block a screen belongs to (`box/`).** The server never says which block a container screen is for.
-- `BoxTracker` remembers the block from the last `UseBlockCallback` and attaches it to the next `ContainerScreen`/`ShulkerBoxScreen` that opens within 5 seconds. Positions are normalized so a double chest's key is its lower-coordinate half, and `BoxKey` is dimension plus position.
-- `BoxValidator` runs every 10 ticks on boxes in loaded chunks, for the current list and every saved list in this world. It follows double-chest merges and splits. A box whose block is gone for two checks in a row is removed; a shulker box is marked `pickedUp` instead.
+- `BoxTracker` remembers the chest/barrel/shulker from the last `UseBlockCallback` and attaches it to the next `ContainerScreen`/`ShulkerBoxScreen` of the same size that opens within 5 seconds. Positions are normalized so a double chest's key is its lower-coordinate half, and `BoxKey` is dimension plus position.
+  - The click is forgotten when any other container screen opens, on `UseEntityCallback`, and when the server acknowledges the click's block-prediction sequence without a screen (`ClientLevelMixin` on `handleBlockChangedAck`; `MultiPlayerGameModeMixin` records the sequence after `useItemOn`). The server sends any menu a click opens before that acknowledgement.
+- `BoxValidator` runs every 10 ticks on boxes in loaded chunks, for the current list and every saved list in this world. A box whose block is gone for two checks in a row is removed if the player broke it (`ClientPlayerBlockBreakEvents`), marked `pickedUp` if it's a shulker box, and otherwise marked `missing`: `Layout` ignores it, and it recovers if the block comes back. A missing box isn't removed because it can look gone when it isn't, e.g. another backend behind the same proxy address.
+  - Double-chest splits and merges go through `reshape`. The menu lists the `ChestType.RIGHT` half in slots 0-26, and which half that is depends on facing, so the surviving half's slots are copied across. If the stored (lower) half is broken, the box moves to the other half.
 - `ContainerHooks.tryReattach` recognizes a re-placed picked-up shulker by its block id and exact contents. It waits until the menu's `stateId != 0`, meaning the contents have arrived.
 - `BoxRefresher` keeps snapshots current without the player opening boxes. A box is "fresh" once its contents are seen this session. It stops being fresh when its chunk unloads, or when its lid opens (chest openness, shulker animation, barrel `OPEN`) while it isn't ours. With `ModConfig.refreshBoxes` on, a non-fresh, closed box within reach and in line of sight gets a real `useItemOn` click. `MenuScreensMixin` then builds the resulting menu without a screen, and the box is read once `stateId != 0` and closed.
-  - Only send the close packet while the hidden menu is still `player.containerMenu`. The server's close handler ignores the container id, so it would close whatever the player has open.
+  - A menu is only taken as the box if it's the expected type and arrives before the click's acknowledgement (`onBlockChangedAck`). An acknowledgement with no menu means the box didn't open.
+  - `MinecraftMixin` cancels `startUseItem` while a check runs, so the player can't open another container meanwhile. The server's close handler ignores the container id, so the refresher's close would otherwise close whatever the player had just opened. The close is also only sent while the hidden menu is still `player.containerMenu`.
   - `BoxTracker.onUseBlock` ignores the refresher's own click (`isUsingBlock`), and no refresh starts within a second of the player right-clicking a container.
+  - It skips trapped chests (their redstone signal), blocked chests, and every box while a piglin is within 16 blocks (opening a container angers them). After a box closes, its lid is ignored until it has come down (`settling`), so lag doesn't cause refresh loops.
   - `uncheckedCount()` (boxes not seen since joining) is shown on the HUD.
 
 **Screen hooks.**
@@ -94,7 +98,8 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 - **Game test** (`src/gametest/.../MaterialBoxGameTest`) is one long scenario.
   - `TestInput` can't send modifier keys, so shift-clicks go through `MouseHandlerAccessor.invokeOnButton` with the shift modifier.
   - Minecraft ignores the first cursor move after a screen opens, so `hoverChestSlot` nudges the cursor first.
-  - The run's `build/run/clientGameTest/config` persists between runs, so reset any state the test depends on (for example `ModConfig.importPanelOpen`, and saved lists).
+  - The run's `build/run/clientGameTest/config` persists between runs, so reset any state the test depends on (for example `ModConfig.importPanelOpen`, `refreshBoxes`, `hudCompact`, and saved lists).
+  - `/setblock ... air` isn't the player breaking a block, so a box there becomes `missing` rather than removed. To test removal, call `BoxValidator.onPlayerBreak` first.
 - **Layout checks at other window sizes.** `checkScreensAt` takes screenshots of every screen at the narrowest GUI (a 640×480 window, so 320×240) and at 1920×1080 with GUI scale 2 (960×540). It also asserts that the Material Box buttons never overlap the container.
 - **Real mouse clicks.** `clickAt` clicks real mouse buttons at GUI coordinates, for example the X confirmation on a list row.
 - **Check rendering, not just logic.** Passing assertions on computed state have missed real rendering bugs. Assert on what was actually drawn (for example `SlotTooltip.lastGhostTooltip`), and look at the screenshots.

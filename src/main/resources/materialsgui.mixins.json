@@ -5,7 +5,11 @@
 	"client": [
 		"AbstractContainerScreenAccessor",
 		"AbstractContainerScreenMixin",
-		"MenuScreensMixin"
+		"ClientLevelAccessor",
+		"ClientLevelMixin",
+		"MenuScreensMixin",
+		"MinecraftMixin",
+		"MultiPlayerGameModeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

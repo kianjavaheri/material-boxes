@@ -248,9 +248,7 @@ public final class SavedLists {
 
 	public static void write() {
 		try {
-			Path file = file();
-			Files.createDirectories(file.getParent());
-			Files.writeString(file, GSON.toJson(all(), TYPE));
+			ModConfig.writeAtomically(file(), GSON.toJson(all(), TYPE));
 		} catch (IOException e) {
 			LOGGER.warn("Couldn't save the saved lists", e);
 		}

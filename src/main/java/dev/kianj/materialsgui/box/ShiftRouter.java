@@ -37,7 +37,8 @@ public final class ShiftRouter {
 		if (plans == null || source == null || !(source.container instanceof Inventory) || !source.hasItem() || !menu.getCarried().isEmpty()) {
 			return false;
 		}
-		return route(menu, plans, source) >= 0;
+		// If nothing moved (the stacks can't merge, say), vanilla's shift-click runs instead.
+		return route(menu, plans, source) > 0;
 	}
 
 	/**
@@ -66,10 +67,15 @@ public final class ShiftRouter {
 
 	/** Places the source stack into the slots planned for its item. Returns how many moved, or -1 if none are planned. */
 	private static int route(AbstractContainerMenu menu, Layout.SlotPlan[] plans, Slot source) {
-		Item item = source.getItem().getItem();
+		ItemStack stack = source.getItem();
+		Item item = stack.getItem();
 		List<Integer> targets = new ArrayList<>();
-		for (int i = 0; i < plans.length; i++) {
-			if (plans[i] != null && plans[i].item() == item && menu.getSlot(i).getItem().getCount() < plans[i].target()) {
+		// Only the container's own slots, even if the plans are stale (the box just changed size).
+		int slots = Math.min(plans.length, BoxTracker.containerSize(menu));
+		for (int i = 0; i < slots; i++) {
+			ItemStack current = menu.getSlot(i).getItem();
+			if (plans[i] != null && plans[i].item() == item && current.getCount() < plans[i].target()
+				&& (current.isEmpty() || ItemStack.isSameItemSameComponents(current, stack))) {
 				targets.add(i);
 			}
 		}
@@ -80,9 +86,10 @@ public final class ShiftRouter {
 		targets.sort(Comparator.comparing(i -> menu.getSlot(i).getItem().isEmpty()));
 
 		Minecraft mc = Minecraft.getInstance();
-		int before = source.getItem().getCount();
+		int before = stack.getCount();
 		click(mc, menu, source.index, 0, ContainerInput.PICKUP);
-		for (int i : targets) {
+		for (int t = 0; t < targets.size(); t++) {
+			int i = targets.get(t);
 			ItemStack carried = menu.getCarried();
 			if (carried.isEmpty()) {
 				break;
@@ -98,6 +105,13 @@ public final class ShiftRouter {
 			}
 			if (carried.getCount() <= room || target >= carried.getMaxStackSize()) {
 				// A left click places as much as fits, which never exceeds a full-stack target.
+				click(mc, menu, i, 0, ContainerInput.PICKUP);
+			} else if (t == targets.size() - 1 && carried.getCount() - room < room) {
+				// The last target, with less left over than fits: put the leftover back one at a time, then place the rest
+				// with one click. Fewer clicks, since some servers limit how many a player can send.
+				for (int n = carried.getCount() - room; n > 0; n--) {
+					click(mc, menu, source.index, 1, ContainerInput.PICKUP);
+				}
 				click(mc, menu, i, 0, ContainerInput.PICKUP);
 			} else {
 				// Partial target: right click places one item at a time so we stop exactly at the target.

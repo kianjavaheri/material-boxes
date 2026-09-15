@@ -14,6 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
 import dev.kianj.materialsgui.data.Project;
+import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.data.SavedLists;
 import dev.kianj.materialsgui.importer.MaterialParser;
 import java.util.List;
@@ -553,6 +554,7 @@ class MaterialParserTest {
 		assertEquals(Map.of(Items.COBBLESTONE, 54 * 64), MaterialParser.parse("1 double chest of cobblestone").materials());
 		assertEquals(Map.of(Items.STONE, 192), MaterialParser.parse("3x64 stone").materials());
 		assertEquals(Map.of(Items.GLASS, 1024), MaterialParser.parse("1,024 glass").materials());
+		assertEquals(Map.of(Items.GLASS, 1024), MaterialParser.parse("1.024 glass").materials());
 		assertEquals(Map.of(Items.STONE, 64), MaterialParser.parse("- 64 stone").materials());
 		assertEquals(Map.of(Items.STONE, 64), MaterialParser.parse("1. 64 stone").materials());
 		assertEquals(Map.of(Items.STONE, 64, Items.GLASS, 32, Items.TORCH, 10), MaterialParser.parse("64 stone, 32 glass; 10 torches").materials());
@@ -562,5 +564,109 @@ class MaterialParserTest {
 		MaterialParser.Result skipped = MaterialParser.parse("# 64 stone\nStill needed:");
 		assertTrue(skipped.materials().isEmpty());
 		assertTrue(skipped.unresolved().isEmpty());
+	}
+
+	@Test
+	void numbersAreOnlyAddedWhenMeantTo() {
+		assertEquals(Map.of(Items.STONE, 1728), MaterialParser.parse("Stone 1728 (27 stacks)").materials());
+		assertEquals(Map.of(Items.GLASS, 160), MaterialParser.parse("2.5 stacks glass").materials());
+		assertEquals(Map.of(Items.STONE, 1500), MaterialParser.parse("1.5k stone").materials());
+		assertEquals(Map.of(Items.STONE, 1000), MaterialParser.parse("1.000 stone").materials());
+		assertEquals(Map.of(Items.MUSIC_DISC_5, 1), MaterialParser.parse("1 minecraft:music_disc_5").materials());
+		assertEquals(Map.of(Items.STONE_BRICKS, 5 * 64 + 12), MaterialParser.parse("5 stacks 12 stone bricks").materials());
+		assertEquals(Map.of(), MaterialParser.parse("Stone 1728 27").materials());
+	}
+
+	@Test
+	void namesWithOfOrUnitWordsResolve() {
+		assertEquals(Map.of(Items.IRON_BLOCK, 164), MaterialParser.parse("164 Block of Iron").materials());
+		assertEquals(Map.of(Items.ENDER_EYE, 12), MaterialParser.parse("12 Eye of Ender").materials());
+		assertEquals(Map.of(Items.SHULKER_BOX, 4), MaterialParser.parse("4 Shulker Box").materials());
+		assertEquals(Map.of(Items.SHULKER_SHELL, 8), MaterialParser.parse("8 Shulker Shell").materials());
+		assertEquals(Map.of(Items.SHORT_GRASS, 64), MaterialParser.parse("64 grass").materials());
+	}
+
+	@Test
+	void tableAndCsvRowsWithoutAHeaderParse() {
+		assertEquals(Map.of(Items.STONE, 64), MaterialParser.parse("Stone,64").materials());
+		assertEquals(Map.of(Items.OAK_PLANKS, 1234), MaterialParser.parse("Oak Planks\t1234\t10\t0").materials());
+		assertEquals(Map.of(Items.STONE, 64), MaterialParser.parse("| 1 | Stone | 64 |").materials());
+		// An amount without an item is reported, not dropped.
+		assertEquals(List.of("64"), MaterialParser.parse("64").unresolved());
+	}
+
+	@Test
+	void pickedUpShulkerPartialStackDoesntTakeWhatsNeeded() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 64));
+		Project.BoxEntry shulker = box(project, A, 27, 0, "minecraft:stone", 1);
+		shulker.block = "minecraft:red_shulker_box";
+		shulker.pickedUp = true;
+		box(project, B, 27);
+
+		Layout layout = Layout.compute(project);
+		assertNull(layout.plans(A));
+		assertEquals(new Layout.SlotPlan(Items.STONE, 63), layout.plan(B, 0));
+	}
+
+	@Test
+	void aBoxWhereAShulkerWasPickedUpHasItsOwnPlans() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 64 * 60));
+		box(project, A, 54);
+		Project.BoxEntry shulker = box(project, A, 27, 0, "minecraft:stone", 64);
+		shulker.pickedUp = true;
+
+		Layout layout = Layout.compute(project);
+		assertEquals(54, layout.plans(A).length);
+		assertEquals(new Layout.SlotPlan(Items.STONE, 64), layout.plan(A, 53));
+	}
+
+	@Test
+	void missingBoxesDontCount() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 100));
+		Project.BoxEntry gone = box(project, A, 27, 0, "minecraft:stone", 64);
+		gone.missing = true;
+		box(project, B, 27);
+
+		Layout layout = Layout.compute(project);
+		assertEquals(0, layout.stored(Items.STONE));
+		assertNull(layout.plans(A));
+		assertEquals(new Layout.SlotPlan(Items.STONE, 64), layout.plan(B, 0));
+		assertTrue(gone.copy().missing);
+	}
+
+	@Test
+	void anItemListedTwiceIsMissingOnce() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 64));
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 32));
+		box(project, A, 27, 0, "minecraft:stone", 64);
+		assertEquals("Still needed:\n32 Stone\n", Layout.compute(project).missingText(project));
+	}
+
+	@Test
+	void reshapingKeepsTheRightHalf() {
+		Project.BoxEntry box = new Project.BoxEntry(A, 54);
+		box.slotItems[3] = "minecraft:stone";
+		box.slotCounts[3] = 5;
+		box.slotItems[30] = "minecraft:glass";
+		box.slotCounts[30] = 7;
+		// The half in slots 27-53 is the one left.
+		box.reshape(27, 27, 0, 27);
+		assertEquals(27, box.size);
+		assertEquals("minecraft:glass", box.slotItems[3]);
+		assertEquals(7, box.countAt(3));
+		// Joined again as the second half.
+		box.reshape(54, 0, 27, 27);
+		assertTrue(box.isEmptyAt(3));
+		assertEquals(7, box.countAt(30));
+	}
+
+	@Test
+	void worldKeysDontCollide() {
+		assertEquals("new_world", ProjectStore.sanitize("New World"));
+		assertFalse(ProjectStore.sanitize("世界").equals(ProjectStore.sanitize("天堂")));
 	}
 }

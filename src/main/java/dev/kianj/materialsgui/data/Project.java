@@ -52,6 +52,11 @@ public final class Project {
 		 * it's placed and opened again. Its position is where it was last seen.
 		 */
 		public boolean pickedUp;
+		/**
+		 * The block is gone, but not because the player broke it (someone else did, or this is a different server
+		 * behind the same address). Its items don't count, and it comes back if the block does.
+		 */
+		public boolean missing;
 
 		public BoxEntry(BoxKey key, int size) {
 			moveTo(key);
@@ -89,6 +94,23 @@ public final class Project {
 			slotCounts = slotCounts == null ? new int[newSize] : Arrays.copyOf(slotCounts, newSize);
 		}
 
+		/** Resizes, moving {@code count} recorded slots from {@code from} to {@code to}. Every other slot is empty. */
+		public void reshape(int newSize, int from, int to, int count) {
+			String[] items = new String[newSize];
+			int[] counts = new int[newSize];
+			for (int i = 0; i < count; i++) {
+				int source = from + i;
+				int target = to + i;
+				if (target < newSize && !isEmptyAt(source)) {
+					items[target] = slotItems[source];
+					counts[target] = countAt(source);
+				}
+			}
+			size = newSize;
+			slotItems = items;
+			slotCounts = counts;
+		}
+
 		/** Items inside shulker boxes kept in this box (item id to count). They count toward the list too. */
 		public @Nullable Map<String, Integer> nested;
 
@@ -107,6 +129,7 @@ public final class Project {
 			copy.nested = nested == null ? null : new LinkedHashMap<>(nested);
 			copy.block = block;
 			copy.pickedUp = pickedUp;
+			copy.missing = missing;
 			return copy;
 		}
 

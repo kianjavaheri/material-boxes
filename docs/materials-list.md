@@ -13,7 +13,7 @@ Open it with **B**, `/materials`, or the **Materials List...** button next to an
   - a red warning if your boxes need more empty slots (`Add Material Boxes: 34 more slots needed`)
   - a hint to add one if you have none
 - **The list:** one row per material, with `stored / needed`.
-- **Bottom buttons:** **Lists...** ([saved lists](saved-lists.md)), **Boxes...** ([the Boxes screen](material-boxes.md#the-boxes-screen)), **Done**.
+- **Bottom buttons:** **Lists...** ([saved lists](saved-lists.md)), **Boxes...** ([the Boxes screen](material-boxes.md#the-boxes-screen)), **Done**, and a small comparator button that opens the [settings](settings-and-controls.md#settings-screen).
 
 ## Reading the list
 
@@ -23,7 +23,7 @@ Open it with **B**, `/materials`, or the **Materials List...** button next to an
 | Yellow | Some stored |
 | Green, with the name crossed out | Enough stored. Crossed off the list. |
 
-"Stored" means in your Material Boxes, including inside shulker boxes kept in them. Items you're carrying don't count until you put them in a box, but the [HUD](hud.md) shows them.
+"Stored" means in your Material Boxes, including inside shulker boxes kept in them. Items you're carrying don't count until you put them in a box, but the [HUD](hud.md) shows them. Boxes whose block is [missing](material-boxes.md#breaking-and-moving-boxes) don't count.
 
 Items that no longer exist (for example from a removed mod) are shown in red as `(unknown item)`. You can replace or remove them like any other row.
 
@@ -64,11 +64,11 @@ Still needed for Axolotl Globe:
 30 Prismarine Bricks
 ```
 
-The format is itself a material list, so it can be pasted straight back into Material Boxes.
+The format is itself a material list, so it can be pasted straight back into Material Boxes. An item that's on the list twice is copied once, with both amounts counted.
 
 ## Clear
 
 **Clear** empties the current list so you can start a new one:
-- **Confirmation:** if the list isn't saved, or has changes since you saved it, it asks **Sure?** first.
+- **Confirmation:** if the list isn't saved, or has changes since you saved it, it asks **Sure?** first. Importing something in the meantime cancels the question.
 - **Saved copy:** the saved copy of a saved list is never touched, and can be loaded again from **Lists...**.
 - **Boxes:** your Material Boxes stay, ready for the next list.

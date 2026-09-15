@@ -3,6 +3,7 @@ package dev.kianj.materialsgui.data;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -68,21 +69,38 @@ public final class ModConfig {
 		hudRows = Math.max(1, Math.min(32, hudRows));
 	}
 
-	/** Renames a file that couldn't be read to "*.unreadable", so saving defaults over it doesn't destroy it. */
+	/**
+	 * Renames a file that couldn't be read to "*.unreadable" (or "*.unreadable.2" and so on), so saving defaults over
+	 * it doesn't destroy it, and a later failure doesn't replace an earlier copy.
+	 */
 	public static void setAsideUnreadable(Path file, Exception e) {
 		Path aside = file.resolveSibling(file.getFileName() + ".unreadable");
+		for (int n = 2; Files.exists(aside); n++) {
+			aside = file.resolveSibling(file.getFileName() + ".unreadable." + n);
+		}
 		LOGGER.warn("Couldn't read {}; keeping it as {}", file, aside.getFileName(), e);
 		try {
-			Files.move(file, aside, StandardCopyOption.REPLACE_EXISTING);
+			Files.move(file, aside);
 		} catch (IOException moveError) {
 			LOGGER.warn("Couldn't set aside {}", file, moveError);
 		}
 	}
 
+	/** Writes a file in one step, through a temporary file, so a crash mid-save can't leave it cut short or empty. */
+	public static void writeAtomically(Path file, String text) throws IOException {
+		Files.createDirectories(file.getParent());
+		Path temp = file.resolveSibling(file.getFileName() + ".tmp");
+		Files.writeString(temp, text);
+		try {
+			Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+		} catch (AtomicMoveNotSupportedException e) {
+			Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+
 	public void save() {
 		try {
-			Files.createDirectories(dir());
-			Files.writeString(file(), GSON.toJson(this));
+			writeAtomically(file(), GSON.toJson(this));
 		} catch (IOException e) {
 			LOGGER.warn("Couldn't save config", e);
 		}

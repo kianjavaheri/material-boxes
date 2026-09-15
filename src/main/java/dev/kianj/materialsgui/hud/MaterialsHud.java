@@ -7,6 +7,7 @@ import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -41,20 +42,17 @@ public final class MaterialsHud {
 
 	private record Line(Item item, Component name, String amount, int amountColor, String carried) {}
 
-	/** Materials still missing, in list order. */
-	private static List<Line> lines(Project project, Layout layout, Inventory inventory) {
+	/** Materials still missing, in list order. An item listed twice is one line, with both amounts. */
+	private static List<Line> lines(Layout layout, Inventory inventory) {
 		List<Line> lines = new ArrayList<>();
-		for (Project.MaterialEntry m : project.materials) {
-			Item item = Layout.resolve(m.item);
-			if (item == null) {
-				continue;
-			}
+		for (Map.Entry<Item, Integer> e : layout.neededItems().entrySet()) {
+			Item item = e.getKey();
 			int stored = layout.stored(item);
-			if (stored >= m.count) {
+			if (stored >= e.getValue()) {
 				continue;
 			}
 			int carried = count(inventory, item);
-			lines.add(new Line(item, new ItemStack(item).getHoverName(), stored + "/" + m.count, stored > 0 ? YELLOW : RED,
+			lines.add(new Line(item, new ItemStack(item).getHoverName(), stored + "/" + e.getValue(), stored > 0 ? YELLOW : RED,
 				carried > 0 ? " +" + carried : ""));
 		}
 		return lines;
@@ -81,15 +79,18 @@ public final class MaterialsHud {
 			return;
 		}
 		boolean compact = config.hudCompact;
-		List<Line> missing = lines(project, ProjectStore.layout(), mc.player.getInventory());
+		List<Line> missing = lines(ProjectStore.layout(), mc.player.getInventory());
 		Font font = mc.font;
 		// The compact HUD only has a title once there's nothing left to list.
 		String title = missing.isEmpty()
 			? "All materials gathered!"
 			: compact ? "" : missing.size() + (missing.size() == 1 ? " material" : " materials") + " still needed";
-		int rows = Math.min(missing.size(), compact ? COMPACT_ROWS : Math.max(1, config.hudRows));
-		int more = missing.size() - rows;
+		int titleHeight = title.isEmpty() ? 0 : 11;
 		int rowHeight = compact ? COMPACT_ROW : ROW;
+		// Never taller than the screen, leaving room for up to two notes underneath.
+		int fit = Math.max(1, (graphics.guiHeight() - 2 * MARGIN - titleHeight - 20) / rowHeight);
+		int rows = Math.min(missing.size(), Math.min(fit, compact ? COMPACT_ROWS : Math.max(1, config.hudRows)));
+		int more = missing.size() - rows;
 		int icon = compact ? 0 : 18;
 		int textY = compact ? 0 : 4;
 
@@ -111,14 +112,15 @@ public final class MaterialsHud {
 		for (String note : notes) {
 			width = Math.max(width, font.width(note));
 		}
-		int height = (title.isEmpty() ? 0 : 11) + rows * rowHeight + notes.size() * 10 - (compact && title.isEmpty() ? 2 : 0);
-		int x = config.hudOnRight ? graphics.guiWidth() - MARGIN - width : MARGIN;
+		int height = titleHeight + rows * rowHeight + notes.size() * 10 - (compact && title.isEmpty() ? 2 : 0);
+		// On the right it grows leftwards, but never off the left edge.
+		int x = config.hudOnRight ? Math.max(MARGIN, graphics.guiWidth() - MARGIN - width) : MARGIN;
 		int y = MARGIN;
 
 		graphics.fill(x - 3, y - 3, x + width + 3, y + height + 1, 0x90000000);
 		if (!title.isEmpty()) {
 			graphics.text(font, title, x, y, missing.isEmpty() ? GREEN : WHITE, true);
-			y += 11;
+			y += titleHeight;
 		}
 		for (int i = 0; i < rows; i++) {
 			Line line = missing.get(i);

@@ -39,5 +39,5 @@ Each saved list keeps its own set of [Material Boxes](material-boxes.md), so you
 - **Switching:** loading a list switches to its boxes in the world you're in.
 - **Lists with no boxes here yet:** a list that has no boxes in this world keeps the ones you're using, so you don't have to mark your storage again for a new list. Clear and New List keep your boxes too.
 - **Sharing:** the same container can belong to several lists. It shows **Also in:** with the other lists' names beside it, and on the Boxes screen. Only the loaded list counts at any time, so nothing is counted twice.
-- **Cleanup:** broken boxes are cleaned up in every list for the world you're in, not just the loaded one.
+- **Cleanup:** boxes are checked in every list for the world you're in, not just the loaded one. A box you break is removed from all of them, and one whose block disappears some other way is marked [missing](material-boxes.md#breaking-and-moving-boxes).
 - **Existing boxes:** boxes you had before saving a list are taken on by the list that's loaded.

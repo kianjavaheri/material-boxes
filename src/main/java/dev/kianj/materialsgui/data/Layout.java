@@ -1,6 +1,7 @@
 package dev.kianj.materialsgui.data;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +23,9 @@ import org.jspecify.annotations.Nullable;
  *       they were added.</li>
  * </ol>
  * Recomputed whenever box contents change, so moving items around just moves the ghosts.
+ *
+ * <p>Only placed boxes get slot plans. A picked-up shulker box's items still count, but it can't be filled and has no
+ * screen, and its last position mustn't be mistaken for a container placed there since. A missing box counts for nothing.
  */
 public final class Layout {
 	/** A slot's material and how many it should hold. An empty slot with a plan shows a ghost of the item. */
@@ -42,6 +46,9 @@ public final class Layout {
 			}
 		}
 		for (Project.BoxEntry box : project.boxes) {
+			if (box.missing) {
+				continue;
+			}
 			for (int i = 0; i < box.size; i++) {
 				Item item = box.itemAt(i);
 				if (item != null) {
@@ -63,6 +70,9 @@ public final class Layout {
 
 		// Slots that already hold a listed material. Partial stacks absorb what's still needed first.
 		for (Project.BoxEntry box : project.boxes) {
+			if (!hasPlans(box)) {
+				continue;
+			}
 			SlotPlan[] arr = new SlotPlan[box.size];
 			layout.plans.put(box.key(), arr);
 			for (int i = 0; i < box.size; i++) {
@@ -83,6 +93,9 @@ public final class Layout {
 			Item item = e.getKey();
 			int excess = layout.stored.getOrDefault(item, 0) - e.getValue();
 			for (int b = project.boxes.size() - 1; b >= 0 && excess > 0; b--) {
+				if (!hasPlans(project.boxes.get(b))) {
+					continue;
+				}
 				SlotPlan[] arr = layout.plans.get(project.boxes.get(b).key());
 				for (int i = arr.length - 1; i >= 0 && excess > 0; i--) {
 					if (arr[i] != null && arr[i].item() == item) {
@@ -94,11 +107,11 @@ public final class Layout {
 			}
 		}
 
-		// Ghosts for what's still missing, in empty slots. A picked-up shulker box can't be filled, so it gets none.
+		// Ghosts for what's still missing, in empty slots.
 		List<Item> queue = new ArrayList<>(layout.needed.keySet());
 		int q = 0;
 		for (Project.BoxEntry box : project.boxes) {
-			if (box.pickedUp) {
+			if (!hasPlans(box)) {
 				continue;
 			}
 			SlotPlan[] arr = layout.plans.get(box.key());
@@ -132,6 +145,10 @@ public final class Layout {
 		return layout;
 	}
 
+	private static boolean hasPlans(Project.BoxEntry box) {
+		return !box.pickedUp && !box.missing;
+	}
+
 	/** Adds two amounts, capping instead of overflowing. */
 	private static int sum(int a, int b) {
 		return (int) Math.min(Integer.MAX_VALUE, (long) a + b);
@@ -143,15 +160,19 @@ public final class Layout {
 
 	/**
 	 * A heading plus a "count name" line for each material that's still missing, or "" if nothing is. It pastes back in
-	 * as a material list.
+	 * as a material list. An item listed twice appears once, with both amounts.
 	 */
 	public String missingText(Project project) {
 		StringBuilder sb = new StringBuilder();
-		for (Project.MaterialEntry m : project.materials) {
-			Item item = resolve(m.item);
-			long missing = (long) m.count - (item == null ? 0 : stored(item));
+		needed.forEach((item, n) -> {
+			long missing = (long) n - stored(item);
 			if (missing > 0) {
-				sb.append(missing).append(' ').append(item == null ? m.item : new ItemStack(item).getHoverName().getString()).append('\n');
+				sb.append(missing).append(' ').append(new ItemStack(item).getHoverName().getString()).append('\n');
+			}
+		});
+		for (Project.MaterialEntry m : project.materials) {
+			if (resolve(m.item) == null) {
+				sb.append(m.count).append(' ').append(m.item).append('\n');
 			}
 		}
 		if (sb.isEmpty()) {
@@ -181,6 +202,11 @@ public final class Layout {
 	/** How many of this item the material list needs in total. */
 	public int needed(Item item) {
 		return needed.getOrDefault(item, 0);
+	}
+
+	/** Every listed item with the total amount needed, in list order. */
+	public Map<Item, Integer> neededItems() {
+		return Collections.unmodifiableMap(needed);
 	}
 
 	/** How many of this item are in Material Boxes (as of each box's last snapshot). */

@@ -27,6 +27,8 @@ The **Materials List...** button opens the [Materials List](materials-list.md), 
 | **Green** | Done. |
 | No color | Not needed for your list, or holds an item that isn't on your list. |
 
+While you drag a stack across slots, the slots you're dragging over show vanilla's preview instead of the highlight.
+
 ### How slots are assigned
 
 The highlights always follow what's actually in the boxes, so you can put items anywhere:
@@ -48,7 +50,7 @@ Hover a highlighted slot to see its progress:
 
 ## Shift-click
 
-Shift-clicking an item in your inventory sends it to that item's highlighted slots in the open Material Box. Partial stacks are topped up first, then empty ghost slots. It places exactly the amount each slot needs, and anything left over goes back where it came from. Items with no highlighted slot in this box use normal shift-click.
+Shift-clicking an item in your inventory sends it to that item's highlighted slots in the open Material Box. Partial stacks are topped up first, then empty ghost slots. It places exactly the amount each slot needs, and anything left over goes back where it came from. Items with no highlighted slot in this box use normal shift-click, and so do items that can't stack with what's already in their slot (a different enchantment or name, say).
 
 ## Deposit All
 
@@ -60,17 +62,21 @@ Items inside shulker boxes that sit in a Material Box count toward your list. A 
 
 ## Double chests
 
-If you turn a single-chest Material Box into a double chest, or break one half of a double chest, the Material Box follows the change.
+If you turn a single-chest Material Box into a double chest, or break one half of a double chest, the Material Box follows the change. Each half keeps its own recorded contents, and breaking either half keeps the Material Box in the half that's left.
 
 ## Breaking and moving boxes
 
-- **Chests, barrels and other containers** spill their items when broken, so their Material Box is **removed** automatically, with a message.
+- **Chests and barrels you break** spill their items, so their Material Box is **removed**, with a message.
+- **If a box's block disappears some other way**, the Material Box is kept as **missing**. That happens when another player breaks it, or when you're on a different server that shares the same address:
+  - Its items don't count toward your list, and it gets no highlighted slots.
+  - It comes back by itself if the container is there again.
+  - The Boxes screen shows it as **Block missing**. Click **Clear Missing** to remove it for good.
 - **Shulker boxes** keep their items when broken, so a broken shulker Material Box is kept as **picked up**:
   - Its items still count toward your list.
   - It doesn't get new red slots, since you can't fill it while it's an item.
   - When you place it again and open it, it reconnects as the same Material Box. It's recognized by its color and exact contents.
 
-Boxes are checked about twice a second, but only in loaded chunks of the dimension you're in. A box broken while you're far away is removed the next time you're nearby.
+Boxes are checked about twice a second, but only in loaded chunks of the dimension you're in. A box whose block disappeared while you were far away is noticed the next time you're nearby.
 
 ## Keeping counts up to date
 
@@ -81,6 +87,8 @@ Minecraft only tells your game what's in a container while it's open. So a Mater
 - you've been far enough away that it wasn't loaded
 - someone else opened it (it's checked after they close it)
 
+It leaves out trapped chests (opening one sends a redstone signal), chests with something on top, and every box while piglins are nearby, since opening a container angers them. While a box is being read, which takes a moment, your right-clicks wait.
+
 Other players nearby see the box open and hear it, as if you'd opened it. If a server doesn't allow mods that open containers by themselves, turn this off and open your boxes yourself.
 
 While some boxes haven't been opened since you joined, the [HUD](hud.md) shows a gray line like `2 boxes not checked since you joined`.
@@ -89,13 +97,15 @@ While some boxes haven't been opened since you joined, the [HUD](hud.md) shows a
 
 Click **Boxes...** on the Materials List to see every Material Box for the current list:
 - **What each row shows:** its number, position, dimension, slot count and how many items it holds.
-- **Status:** OK, Block missing, Not loaded, or In another dimension. Picked-up shulker boxes show **Picked up** (or **Picked up, in your inventory** if you're carrying it) and where they were last seen.
+- **Status:** OK, Block missing, Not loaded, or In another dimension. Boxes kept as [missing](#breaking-and-moving-boxes) show **Block missing** even when they're too far away to check. Picked-up shulker boxes show **Picked up** (or **Picked up, in your inventory** if you're carrying it) and where they were last seen.
 - **Layout:** the screen is a centered column. Each box takes two lines: its number and position (with the status on the right), then its slots, items and any other lists that use it.
 - **Also in:** listed when the box is shared with another saved list.
 
+The rows update by themselves if a box is removed while the screen is open.
+
 Buttons:
 - **Remove**: removes that Material Box.
-- **Clear Missing**: removes boxes whose block is gone.
+- **Clear Missing**: removes boxes whose block is gone, including ones kept as missing.
 - **Clear All**: removes every box. It changes to **Sure?** first; click again to confirm.
 
 ## Boxes and saved lists

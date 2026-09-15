@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.locale.Language;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -12,24 +13,39 @@ import org.jspecify.annotations.Nullable;
 
 /** Maps a human-written item name ("Oak Planks", "oak_plank", "minecraft:oak_planks", "stone brick") to an Item. */
 public final class ItemResolver {
+	/**
+	 * Old names and block ids that don't match an item any more, or that fuzzy matching would take for a different item
+	 * ("grass" is one letter from "glass").
+	 */
+	private static final Map<String, String> ALIASES = Map.of(
+		"grass", "short_grass",
+		"redstonewire", "redstone",
+		"chain", "iron_chain",
+		"water", "water_bucket",
+		"lava", "lava_bucket",
+		"tripwire", "string");
+
 	private static Map<String, Item> index;
+	/** The language the index's display names are in; it's rebuilt when the language changes. */
+	private static Language indexLanguage;
 
 	private ItemResolver() {}
 
 	public static @Nullable Item resolve(String rawName) {
 		String name = rawName.strip();
-		Identifier id = Identifier.tryParse(name.toLowerCase(Locale.ROOT).replace(' ', '_'));
-		if (id != null && BuiltInRegistries.ITEM.containsKey(id)) {
-			Item item = BuiltInRegistries.ITEM.getValue(id);
-			if (item != Items.AIR) {
-				return item;
-			}
+		Item exact = byId(name.toLowerCase(Locale.ROOT).replace(' ', '_'));
+		if (exact != null) {
+			return exact;
 		}
 
 		Map<String, Item> idx = index();
 		String key = normalize(name);
 		if (key.isEmpty()) {
 			return null;
+		}
+		Item alias = ALIASES.containsKey(key) ? byId(ALIASES.get(key)) : null;
+		if (alias != null) {
+			return alias;
 		}
 		Item hit = idx.get(key);
 		if (hit == null && key.endsWith("es")) {
@@ -65,8 +81,18 @@ public final class ItemResolver {
 		return bestDist <= limit && !tie ? best : null;
 	}
 
+	private static @Nullable Item byId(String id) {
+		Identifier identifier = Identifier.tryParse(id);
+		if (identifier == null || !BuiltInRegistries.ITEM.containsKey(identifier)) {
+			return null;
+		}
+		Item item = BuiltInRegistries.ITEM.getValue(identifier);
+		return item == Items.AIR ? null : item;
+	}
+
 	private static Map<String, Item> index() {
-		if (index == null) {
+		if (index == null || indexLanguage != Language.getInstance()) {
+			indexLanguage = Language.getInstance();
 			Map<String, Item> idx = new HashMap<>();
 			for (Item item : BuiltInRegistries.ITEM) {
 				if (item == Items.AIR) {

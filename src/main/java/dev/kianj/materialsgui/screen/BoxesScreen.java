@@ -40,6 +40,8 @@ public class BoxesScreen extends Screen {
 	private boolean confirmClearAll;
 	private int left;
 	private int right;
+	/** The boxes the rows and buttons were built for. */
+	private List<Project.BoxEntry> builtFor = List.of();
 
 	public BoxesScreen(@Nullable Screen parent) {
 		super(Component.literal("Material Boxes"));
@@ -48,6 +50,14 @@ public class BoxesScreen extends Screen {
 
 	private List<Project.BoxEntry> boxes() {
 		return ProjectStore.project().boxes;
+	}
+
+	@Override
+	public void tick() {
+		// Boxes can be removed in the background (a chest broken nearby), so keep the rows and buttons in step.
+		if (!builtFor.equals(boxes())) {
+			rebuildWidgets();
+		}
 	}
 
 	private int visibleRows() {
@@ -60,11 +70,14 @@ public class BoxesScreen extends Screen {
 		left = (this.width - columnWidth) / 2;
 		right = left + columnWidth;
 		scroll = Math.max(0, Math.min(scroll, boxes().size() - visibleRows()));
+		builtFor = List.copyOf(boxes());
 		for (int r = 0; r < visibleRows() && scroll + r < boxes().size(); r++) {
-			int index = scroll + r;
+			Project.BoxEntry box = boxes().get(scroll + r);
 			addRenderableWidget(Button.builder(Component.literal("Remove"), b -> {
-				boxes().remove(index);
-				ProjectStore.changed();
+				// The box itself, not its row: boxes can be removed in the background while this screen is open.
+				if (boxes().remove(box)) {
+					ProjectStore.changed();
+				}
 				rebuildWidgets();
 			}).bounds(right - REMOVE_WIDTH, TOP + r * ROW, REMOVE_WIDTH, 20).build());
 		}
@@ -124,6 +137,9 @@ public class BoxesScreen extends Screen {
 	private Status status(Project.BoxEntry box) {
 		if (box.pickedUp) {
 			return inInventory(box) ? Status.IN_INVENTORY : Status.PICKED_UP;
+		}
+		if (box.missing) {
+			return Status.MISSING;
 		}
 		ClientLevel level = this.minecraft.level;
 		if (level == null) {

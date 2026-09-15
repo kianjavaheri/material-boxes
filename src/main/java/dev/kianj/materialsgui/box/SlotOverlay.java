@@ -3,6 +3,7 @@ package dev.kianj.materialsgui.box;
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
 import dev.kianj.materialsgui.data.ProjectStore;
+import dev.kianj.materialsgui.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -25,6 +26,11 @@ public final class SlotOverlay {
 	public static Layout.@Nullable SlotPlan planFor(AbstractContainerScreen<?> screen, Slot slot) {
 		BoxKey key = BoxTracker.keyFor(screen);
 		if (key == null || slot.container instanceof Inventory) {
+			return null;
+		}
+		// While a stack is dragged across slots, vanilla draws a preview stack and count in them; don't draw over it.
+		AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+		if (acc.materialsgui$isQuickCrafting() && acc.materialsgui$getQuickCraftSlots().contains(slot)) {
 			return null;
 		}
 		return ProjectStore.layout().plan(key, slot.index);

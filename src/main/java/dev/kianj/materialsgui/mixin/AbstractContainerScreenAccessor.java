@@ -1,5 +1,6 @@
 package dev.kianj.materialsgui.mixin;
 
+import java.util.Set;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import org.jspecify.annotations.Nullable;
@@ -22,4 +23,10 @@ public interface AbstractContainerScreenAccessor {
 
 	@Accessor("hoveredSlot")
 	@Nullable Slot materialsgui$getHoveredSlot();
+
+	@Accessor("isQuickCrafting")
+	boolean materialsgui$isQuickCrafting();
+
+	@Accessor("quickCraftSlots")
+	Set<Slot> materialsgui$getQuickCraftSlots();
 }

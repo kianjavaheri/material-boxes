@@ -4,6 +4,7 @@ import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.ModConfig;
 import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
+import dev.kianj.materialsgui.mixin.ClientLevelAccessor;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -14,9 +15,13 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.monster.piglin.Piglin;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
+import net.minecraft.world.level.block.TrappedChestBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.LidBlockEntity;
 import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
@@ -36,22 +41,30 @@ import org.jspecify.annotations.Nullable;
  * a box that isn't fresh, is closed, and is within reach and in sight is opened in the background: the server is sent
  * the same right-click a player would make, the menu it opens gets no screen, and it's closed as soon as its contents
  * arrive.
+ *
+ * <p>The server handles clicks in order and acknowledges each one after any container it opened. So a menu that
+ * arrives before the click is acknowledged is the box, and an acknowledgement with no menu means the box didn't open
+ * (something on top of the chest, say). While a box is being read the player's own right-clicks wait, so the server
+ * never has two containers to open or close at once.
  */
 public final class BoxRefresher {
-	/** How long to wait for the server to open a box before giving up. */
-	private static final int TIMEOUT_TICKS = 40;
-	/** A box that couldn't be opened (something on top of the chest, say) isn't tried again for this long. */
+	/** The server always acknowledges a click; this is only a safety net. */
+	private static final int TIMEOUT_TICKS = 200;
+	/** A box that didn't open isn't tried again for this long. */
 	private static final int RETRY_TICKS = 600;
 	private static final int GAP_TICKS = 10;
-	/** A lid keeps moving for a while after the box closes, so it isn't mistaken for someone else opening it. */
-	private static final int OWN_CLOSE_GRACE_TICKS = 40;
+	/** A lid still open this long after its box was closed means someone else has it open. */
+	private static final int LID_SETTLE_TICKS = 100;
 	/** A container the player right-clicked within this long is theirs to open, so no refresh starts meanwhile. */
 	private static final long PLAYER_USE_MS = 1000;
+	/** Opening a container angers piglins this close that can see you. */
+	private static final double PIGLIN_RANGE = 16;
 
 	private static final Set<BoxKey> seen = new HashSet<>();
 	private static final Set<BoxKey> fresh = new HashSet<>();
 	private static final Map<BoxKey, Long> retryAt = new HashMap<>();
-	private static final Map<BoxKey, Long> closedAt = new HashMap<>();
+	/** Boxes just closed by us or the player, whose lid may still be coming down, with when they closed. */
+	private static final Map<BoxKey, Long> settling = new HashMap<>();
 	private static @Nullable Check check;
 	private static long ticks;
 	private static long lastStart = Long.MIN_VALUE / 2;
@@ -59,24 +72,28 @@ public final class BoxRefresher {
 
 	private BoxRefresher() {}
 
-	/** A background refresh: the menu is null until the server opens it. */
+	/** A background refresh. The menu is null until the server opens it. */
 	private static final class Check {
 		final BoxKey key;
+		final MenuType<?> type;
 		final long started;
+		int sequence = -1;
+		boolean acked;
 		@Nullable AbstractContainerMenu menu;
 
-		Check(BoxKey key, long started) {
+		Check(BoxKey key, MenuType<?> type, long started) {
 			this.key = key;
+			this.type = type;
 			this.started = started;
 		}
 	}
 
-	/** Forgets everything seen; called when joining a world or server. */
+	/** Forgets everything seen; called when joining or leaving a world or server. */
 	public static void reset() {
 		seen.clear();
 		fresh.clear();
 		retryAt.clear();
-		closedAt.clear();
+		settling.clear();
 		check = null;
 	}
 
@@ -88,7 +105,22 @@ public final class BoxRefresher {
 
 	/** Called when the player closes a box's screen. */
 	public static void closedByPlayer(BoxKey key) {
-		closedAt.put(key, ticks);
+		settling.put(key, ticks);
+	}
+
+	/** The box's contents may have changed without its lid moving, so read it again when possible. */
+	public static void markStale(BoxKey key) {
+		fresh.remove(key);
+	}
+
+	/** A box moved, e.g. its double chest was split or joined. It keeps having been seen, but its new half is unknown. */
+	public static void moved(BoxKey from, BoxKey to) {
+		if (seen.remove(from)) {
+			seen.add(to);
+		}
+		fresh.remove(from);
+		fresh.remove(to);
+		settling.remove(from);
 	}
 
 	/** True while the refresher itself is right-clicking a box, so it isn't taken for the player's click. */
@@ -96,11 +128,16 @@ public final class BoxRefresher {
 		return usingBlock;
 	}
 
+	/** True while a box is being read, when the player's own right-clicks have to wait. */
+	public static boolean blocksPlayerUse() {
+		return check != null;
+	}
+
 	/** Placed Material Boxes of the current list whose contents haven't been seen since joining. */
 	public static int uncheckedCount() {
 		int count = 0;
 		for (Project.BoxEntry box : ProjectStore.project().boxes) {
-			if (!box.pickedUp && !seen.contains(box.key())) {
+			if (!box.pickedUp && !box.missing && !seen.contains(box.key())) {
 				count++;
 			}
 		}
@@ -129,7 +166,7 @@ public final class BoxRefresher {
 	private static void watchLids(ClientLevel level, String dimension) {
 		BoxKey open = BoxTracker.openKey();
 		for (Project.BoxEntry box : ProjectStore.project().boxes) {
-			if (box.pickedUp) {
+			if (box.pickedUp || box.missing) {
 				continue;
 			}
 			BoxKey key = box.key();
@@ -138,9 +175,22 @@ public final class BoxRefresher {
 				fresh.remove(key);
 				continue;
 			}
-			Long closed = closedAt.get(key);
-			boolean ours = key.equals(open) || (check != null && key.equals(check.key)) || (closed != null && ticks - closed < OWN_CLOSE_GRACE_TICKS);
-			if (!ours && isOpen(level, pos)) {
+			if (key.equals(open) || (check != null && key.equals(check.key))) {
+				continue;
+			}
+			boolean lidOpen = isOpen(level, pos);
+			Long closed = settling.get(key);
+			if (closed != null) {
+				// Our own lid coming down isn't someone else opening the box, however long the server takes to say so.
+				if (!lidOpen) {
+					settling.remove(key);
+				} else if (ticks - closed > LID_SETTLE_TICKS) {
+					settling.remove(key);
+					fresh.remove(key);
+				}
+				continue;
+			}
+			if (lidOpen) {
 				fresh.remove(key);
 			}
 		}
@@ -176,12 +226,20 @@ public final class BoxRefresher {
 	}
 
 	private static void start(Minecraft mc, LocalPlayer player, ClientLevel level, String dimension) {
+		Boolean piglinsNearby = null;
 		for (Project.BoxEntry box : ProjectStore.project().boxes) {
 			BoxKey key = box.key();
 			BlockPos pos = new BlockPos(box.x, box.y, box.z);
 			Long retry = retryAt.get(key);
-			if (box.pickedUp || fresh.contains(key) || (retry != null && ticks < retry) || !box.dimension.equals(dimension)
+			if (box.pickedUp || box.missing || fresh.contains(key) || (retry != null && ticks < retry) || !box.dimension.equals(dimension)
 				|| !level.isLoaded(pos) || !player.isWithinBlockInteractionRange(pos, 0) || isOpen(level, pos)) {
+				continue;
+			}
+			BlockState state = level.getBlockState(pos);
+			int size = BoxTracker.containerSize(level, pos);
+			// Opening a trapped chest sends a redstone signal, and a chest with something on top can't open at all.
+			if (state.getBlock() instanceof TrappedChestBlock || (state.getBlock() instanceof ChestBlock && ChestBlock.isChestBlockedAt(level, pos))
+				|| size == 0 || size != box.size) {
 				continue;
 			}
 			// Click the box where a line from the player's eyes meets it, and only if nothing is in the way.
@@ -190,7 +248,15 @@ public final class BoxRefresher {
 			if (hit.getType() != HitResult.Type.BLOCK || !pos.equals(BoxTracker.normalize(level, hit.getBlockPos()))) {
 				continue;
 			}
-			check = new Check(key, ticks);
+			if (piglinsNearby == null) {
+				piglinsNearby = !level.getEntitiesOfClass(Piglin.class, player.getBoundingBox().inflate(PIGLIN_RANGE)).isEmpty();
+			}
+			if (piglinsNearby) {
+				return;
+			}
+			MenuType<?> type = state.getBlock() instanceof ShulkerBoxBlock ? MenuType.SHULKER_BOX : size == 54 ? MenuType.GENERIC_9x6 : MenuType.GENERIC_9x3;
+			Check c = new Check(key, type, ticks);
+			check = c;
 			lastStart = ticks;
 			retryAt.put(key, ticks + RETRY_TICKS);
 			usingBlock = true;
@@ -199,18 +265,18 @@ public final class BoxRefresher {
 			} finally {
 				usingBlock = false;
 			}
+			c.sequence = ((ClientLevelAccessor) level).materialsgui$getPredictionHandler().currentSequence();
 			return;
 		}
 	}
 
 	/**
-	 * Called when the server opens a menu. Returns true if it's the box being refreshed, in which case the menu is set
-	 * up without a screen.
+	 * Called when the server opens a menu. Returns true if it's the box being refreshed (the right kind of menu, before
+	 * the click was acknowledged), in which case the menu is set up without a screen.
 	 */
 	public static boolean onOpenScreen(MenuType<?> type, int containerId) {
 		LocalPlayer player = Minecraft.getInstance().player;
-		if (check == null || check.menu != null || player == null
-			|| !(type == MenuType.GENERIC_9x3 || type == MenuType.GENERIC_9x6 || type == MenuType.SHULKER_BOX)) {
+		if (check == null || check.menu != null || check.acked || type != check.type || player == null) {
 			return false;
 		}
 		check.menu = type.create(containerId, player.getInventory());
@@ -218,23 +284,37 @@ public final class BoxRefresher {
 		return true;
 	}
 
+	/** The server has handled clicks up to this sequence, and sent any menu they opened before this. */
+	public static void onBlockChangedAck(int sequence) {
+		if (check != null && check.sequence >= 0 && sequence >= check.sequence) {
+			check.acked = true;
+		}
+	}
+
 	private static void continueCheck(Minecraft mc, LocalPlayer player) {
 		Check c = check;
-		if (c.menu == null || c.menu.getStateId() == 0) {
-			// Still waiting for the server to open it, or for its contents.
-			if (ticks - c.started > TIMEOUT_TICKS) {
-				if (c.menu != null) {
-					close(mc, player, c);
-				}
+		boolean timedOut = ticks - c.started > TIMEOUT_TICKS;
+		if (c.menu == null) {
+			// Acknowledged without a menu: the server didn't open the box. It's tried again later.
+			if (c.acked || timedOut) {
 				check = null;
 			}
 			return;
 		}
-		check = null;
 		if (player.containerMenu != c.menu) {
-			// The server closed it, or the player opened something else.
+			// The server closed it.
+			check = null;
 			return;
 		}
+		if (c.menu.getStateId() == 0) {
+			// Waiting for the contents.
+			if (timedOut) {
+				check = null;
+				close(mc, player, c);
+			}
+			return;
+		}
+		check = null;
 		Project project = ProjectStore.project();
 		int index = project.indexOfBox(c.key);
 		int size = BoxTracker.containerSize(c.menu);
@@ -260,6 +340,7 @@ public final class BoxRefresher {
 	 * the hidden menu is still the open one.
 	 */
 	private static void close(Minecraft mc, LocalPlayer player, Check c) {
+		settling.put(c.key, ticks);
 		if (player.containerMenu != c.menu) {
 			return;
 		}
@@ -267,6 +348,5 @@ public final class BoxRefresher {
 			mc.getConnection().send(new ServerboundContainerClosePacket(c.menu.containerId));
 		}
 		player.containerMenu = player.inventoryMenu;
-		closedAt.put(c.key, ticks);
 	}
 }

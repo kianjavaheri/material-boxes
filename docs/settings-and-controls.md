@@ -44,6 +44,6 @@ Everything is saved in your Minecraft folder under `config/materialsgui/`:
 |---|---|
 | `config.json` | Settings, including your API key |
 | `saved-lists.json` | Your [saved lists](saved-lists.md), with their replacements and Material Boxes per world |
-| `projects/<world>.json` | The current list and Material Boxes for each world: `sp_<world name>` for singleplayer, `mp_<server address>` for servers |
+| `projects/<world>.json` | The current list and Material Boxes for each world: `sp_<save folder>` for singleplayer, `mp_<server address>` for servers, `lan_<name>` for LAN worlds and `realm_<name>` for Realms |
 
-If one of these files is damaged and can't be read, it's renamed to `<file>.unreadable` and kept, instead of being overwritten. Material Boxes then starts that file fresh. Entries that are only partly broken are cleaned up automatically.
+Files are written in one step, through a temporary `.tmp` file, so a crash while saving can't leave one half-written. If one of these files is damaged and can't be read, it's renamed to `<file>.unreadable` (or `.unreadable.2` and so on, so an earlier copy is never replaced) and kept, instead of being overwritten. Material Boxes then starts that file fresh. Entries that are only partly broken are cleaned up automatically.

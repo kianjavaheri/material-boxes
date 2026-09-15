@@ -66,13 +66,15 @@ public final class ClaudeImporter {
 				if (cause instanceof IOException) {
 					throw new ImportException("Couldn't reach the Anthropic API. Check your internet connection.");
 				}
-				throw new ImportException("Screenshot import failed: " + cause);
+				// Only the kind of error: a message can contain the API key (an invalid header value is quoted in full).
+				throw new ImportException("Screenshot import failed (" + cause.getClass().getSimpleName() + "). Try again.");
 			});
 	}
 
 	private static HttpRequest request(EncodedImage image, String apiKey, String model) {
 		HttpRequest.Builder request = HttpRequest.newBuilder(MESSAGES_URL)
-			.timeout(Duration.ofMinutes(3))
+			// The reply isn't streamed, so this covers all of it, which can take several minutes for a long list.
+			.timeout(Duration.ofMinutes(10))
 			.header("content-type", "application/json")
 			.header("x-api-key", apiKey)
 			.header("anthropic-version", "2023-06-01");
@@ -177,7 +179,7 @@ public final class ClaudeImporter {
 				}
 			}
 			return toLines(json.toString());
-		} catch (JsonParseException | IllegalStateException | NullPointerException | UnsupportedOperationException e) {
+		} catch (JsonParseException | IllegalStateException | NullPointerException | UnsupportedOperationException | NumberFormatException e) {
 			throw new ImportException("Claude's reply couldn't be read. Try again.");
 		}
 	}

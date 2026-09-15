@@ -50,7 +50,8 @@ public class SettingsScreen extends Screen {
 		apiKey.setHint(Component.literal("sk-ant-..."));
 		apiKey.setValue(config.anthropicApiKey);
 		apiKey.addFormatter((text, offset) -> FormattedCharSequence.forward("*".repeat(text.length()), Style.EMPTY));
-		apiKey.setResponder(v -> config.anthropicApiKey = v.strip());
+		// Only printable ASCII: an invisible character pasted along with the key would make every request fail.
+		apiKey.setResponder(v -> config.anthropicApiKey = v.replaceAll("[^\\x21-\\x7E]", ""));
 		addRenderableWidget(apiKey);
 
 		EditBox model = new EditBox(this.font, left, modelY, width, 20, Component.literal("Claude model"));

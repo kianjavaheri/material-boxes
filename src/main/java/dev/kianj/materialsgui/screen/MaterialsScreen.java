@@ -9,6 +9,7 @@ import dev.kianj.materialsgui.data.SavedLists;
 import dev.kianj.materialsgui.importer.ClaudeImporter;
 import dev.kianj.materialsgui.importer.MaterialParser;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -75,6 +76,8 @@ public class MaterialsScreen extends Screen {
 	private static List<String> unresolved = List.of();
 	private static String search = "";
 	private static Sort sort = Sort.LIST;
+	/** A screenshot is being read by Claude. One at a time, and it can outlast the screen that started it. */
+	private static boolean importing;
 
 	private @Nullable Boolean showPanel;
 	private @Nullable MultiLineEditBox input;
@@ -209,7 +212,7 @@ public class MaterialsScreen extends Screen {
 		ModConfig.get().save();
 	}
 
-	static void clearUnresolved() {
+	public static void clearUnresolved() {
 		unresolved = List.of();
 	}
 
@@ -262,9 +265,16 @@ public class MaterialsScreen extends Screen {
 	}
 
 	private void applyImport(boolean replace) {
+		confirmClear = false;
 		MaterialParser.Result result = MaterialParser.parse(draft);
 		if (result.materials().isEmpty() && result.unresolved().isEmpty()) {
 			setStatus("Nothing to import. Lines need an amount and an item, like \"64 stone\".", RED);
+			return;
+		}
+		if (replace && result.materials().isEmpty()) {
+			unresolved = result.unresolved();
+			setStatus("None of these lines were recognized, so the list wasn't replaced. Fix them and try again.", RED);
+			rebuildWidgets();
 			return;
 		}
 		Project project = ProjectStore.project();
@@ -314,7 +324,8 @@ public class MaterialsScreen extends Screen {
 			.flatMap(dir -> {
 				try (Stream<Path> files = Files.walk(dir, 3)) {
 					return files.filter(MaterialsScreen::isMaterialListExport).toList().stream();
-				} catch (IOException e) {
+				} catch (IOException | UncheckedIOException e) {
+					// An unreadable subfolder (thrown while walking) shouldn't crash the click.
 					return Stream.empty();
 				}
 			})
@@ -374,17 +385,38 @@ public class MaterialsScreen extends Screen {
 			setStatus("Add your Anthropic API key first, with the key button above the import box.", RED);
 			return;
 		}
+		if (importing) {
+			setStatus("Still reading the last screenshot. Wait for it to finish.", YELLOW);
+			return;
+		}
 		config.save();
+		importing = true;
 		setStatus("Reading " + file.getFileName() + " with Claude...", YELLOW);
 		ClaudeImporter.extract(file, config.anthropicApiKey, config.model).whenComplete((text, error) -> this.minecraft.execute(() -> {
+			importing = false;
+			boolean read = error == null && !text.isBlank();
+			String message;
+			int color;
 			if (error != null) {
 				Throwable cause = error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
-				setStatus(cause.getMessage() == null ? "Screenshot import failed." : cause.getMessage(), RED);
-			} else if (text.isBlank()) {
-				setStatus("Claude didn't find a material list in that image.", RED);
+				message = cause.getMessage() == null ? "Screenshot import failed." : cause.getMessage();
+				color = RED;
+			} else if (!read) {
+				message = "Claude didn't find a material list in that image.";
+				color = RED;
 			} else {
-				setDraft(text);
-				setStatus("Check the list, then press Replace or Add to List.", GREEN);
+				draft = text;
+				message = "Check the list, then press Replace or Add to List.";
+				color = GREEN;
+			}
+			// The Materials List may have been closed, or closed and reopened, while Claude was reading.
+			if (this.minecraft.gui.screen() instanceof MaterialsScreen open) {
+				if (read && open.input != null) {
+					open.input.setValue(draft, true);
+				}
+				open.setStatus(message, color);
+			} else if (this.minecraft.player != null) {
+				this.minecraft.player.sendOverlayMessage(Component.literal(read ? "Screenshot read. Open the Materials List to check it." : message));
 			}
 		}));
 	}
@@ -510,10 +542,13 @@ public class MaterialsScreen extends Screen {
 		int infoY = HEADER_Y + 49;
 		String boxes = project.boxes.size() + (project.boxes.size() == 1 ? " Material Box" : " Material Boxes");
 		graphics.text(this.font, boxes, listRight - this.font.width(boxes), infoY, GRAY, true);
+		// Cut to fit, so it never runs into the box count when the list is narrow.
+		int infoWidth = listRight - listLeft - this.font.width(boxes) - 8;
 		if (!project.boxes.isEmpty() && !layout.unplaced().isEmpty()) {
-			graphics.text(this.font, "Add Material Boxes: " + layout.missingSlots() + " more slots needed", listLeft, infoY, RED, true);
+			graphics.text(this.font, this.font.plainSubstrByWidth("Add Material Boxes: " + layout.missingSlots() + " more slots needed", infoWidth),
+				listLeft, infoY, RED, true);
 		} else if (project.boxes.isEmpty() && !project.materials.isEmpty()) {
-			graphics.text(this.font, "Open a chest and click \"+ Material Box\"", listLeft, infoY, YELLOW, true);
+			graphics.text(this.font, this.font.plainSubstrByWidth("Open a chest and click \"+ Material Box\"", infoWidth), listLeft, infoY, YELLOW, true);
 		}
 
 		int center = (listLeft + listRight) / 2;

@@ -1,6 +1,7 @@
 package dev.kianj.materialsgui.gametest;
 
 import dev.kianj.materialsgui.box.BoxRefresher;
+import dev.kianj.materialsgui.box.BoxValidator;
 import dev.kianj.materialsgui.box.SlotTooltip;
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
@@ -178,7 +179,8 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 			ctx.setScreen(() -> null);
 			ctx.waitTicks(2);
 
-			// Breaking the box removes it.
+			// Breaking the box yourself removes it.
+			ctx.runOnClient(mc -> BoxValidator.onPlayerBreak(mc.level, mc.player, chest, mc.level.getBlockState(chest)));
 			sp.getServer().runCommand("setblock " + at + " minecraft:air");
 			ctx.waitFor(mc -> ProjectStore.project().boxes.isEmpty());
 
@@ -436,10 +438,15 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 				SavedLists.load(SavedLists.find("Castle walls"));
 			});
 
-			// Boxes of a list that isn't loaded are still cleaned up when they're broken.
+			// Boxes of a list that isn't loaded are checked too. A chest that goes without the player breaking it (someone
+			// else did, say) is kept as missing: it stops counting, and Clear Missing removes it.
 			sp.getServer().runCommand("setblock " + garden.getX() + " " + garden.getY() + " " + garden.getZ() + " minecraft:air");
-			ctx.waitFor(mc -> SavedLists.find("Garden").boxes.get(ProjectStore.worldKey()).isEmpty());
-			ctx.runOnClient(mc -> expectOnlyBox(moved));
+			ctx.waitFor(mc -> SavedLists.find("Garden").boxes.get(ProjectStore.worldKey()).getFirst().missing);
+			ctx.runOnClient(mc -> {
+				expectOnlyBox(moved);
+				SavedLists.find("Garden").boxes.get(ProjectStore.worldKey()).clear();
+				SavedLists.write();
+			});
 
 			// A shulker box inside a Material Box counts as its contents, and Deposit All moves every listed item in.
 			BlockPos depot = garden;

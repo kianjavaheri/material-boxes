@@ -44,8 +44,14 @@ public final class ContainerHooks {
 			return;
 		}
 		int index = ProjectStore.project().indexOfBox(key);
-		if (index >= 0 && ProjectStore.project().boxes.get(index).size != BoxTracker.size()) {
-			ProjectStore.project().boxes.get(index).resize(BoxTracker.size());
+		if (index >= 0) {
+			Project.BoxEntry box = ProjectStore.project().boxes.get(index);
+			// It's open, so it's there; and its slot plans must match the menu before any slot is drawn or clicked.
+			if (box.size != BoxTracker.size() || box.missing) {
+				box.missing = false;
+				box.resize(BoxTracker.size());
+				ProjectStore.changed();
+			}
 		}
 
 		AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) containerScreen;
@@ -118,7 +124,8 @@ public final class ContainerHooks {
 	/** Records the box's slot contents. Returns true if they changed since the last snapshot. */
 	private static boolean snapshot(AbstractContainerScreen<?> screen, BoxKey key) {
 		int index = ProjectStore.project().indexOfBox(key);
-		if (index < 0) {
+		// Until the server sends the contents (the state id is 0 until then) the menu looks empty, which isn't the box.
+		if (index < 0 || screen.getMenu().getStateId() == 0) {
 			return false;
 		}
 		Project.BoxEntry box = ProjectStore.project().boxes.get(index);

@@ -16,7 +16,7 @@ Load your list by pasting it, importing a Litematica export, or letting Claude r
 - **Missing materials HUD** in full or compact size. Toggle it with **H**.
 - **Auto-refresh:** boxes that may have changed are read in the background when you're within reach.
 - **Saved lists,** each with its own Material Boxes, shared across worlds.
-- **Tidies up by itself:** broken boxes are removed, double chests are followed, and picked-up shulker boxes reconnect when placed again.
+- **Tidies up by itself:** boxes you break are removed, boxes that disappear any other way are kept as missing until you clear them, double chests are followed, and picked-up shulker boxes reconnect when placed again.
 - **Shulker box preview** for shulker boxes in your inventory.
 
 ## Requirements

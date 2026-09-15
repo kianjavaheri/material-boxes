@@ -73,7 +73,7 @@ public class EditMaterialScreen extends Screen {
 
 		int y = amountY();
 		amount = new EditBox(this.font, left + 50, y, 70, 20, Component.literal("Amount"));
-		amount.setMaxLength(9);
+		amount.setMaxLength(10);
 		amount.setValue(amountText != null ? amountText : String.valueOf(entry().count));
 		amount.setResponder(v -> amountText = v);
 		addRenderableWidget(amount);
