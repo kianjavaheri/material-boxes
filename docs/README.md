@@ -17,8 +17,8 @@ It's client-only, so it works on servers that don't have it installed.
 | Page | Covers |
 |---|---|
 | [Importing a material list](importing-lists.md) | Pasting text, Litematica exports, screenshots read by Claude, Replace vs Add, saved replacements |
-| [Material Boxes](material-boxes.md) | Marking containers, red/yellow/green slots, hover tooltips, shift-click and Deposit All, shulker contents, breaking and moving boxes, the Boxes screen |
-| [The Materials List screen](materials-list.md) | Progress, search and sort, replacing items, changing amounts, Copy, Clear, the import panel |
+| [Material Boxes](material-boxes.md) | Marking containers, red/yellow/green slots, hover tooltips, hiding the highlights, shift-click and Deposit All, shulker contents, breaking and moving boxes, the Boxes screen |
+| [The Materials List screen](materials-list.md) | Progress, search and sort, replacing items, changing amounts, crossing off materials, Copy, Clear, the import panel |
 | [Saved lists](saved-lists.md) | Saving, loading, renaming and deleting lists, replacements, and each list's own Material Boxes |
 | [Missing materials HUD](hud.md) | The on-screen checklist |
 | [Shulker box preview](shulker-preview.md) | Looking inside shulker boxes in your inventory |

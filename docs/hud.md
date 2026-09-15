@@ -11,7 +11,7 @@ A small checklist in the corner of the screen shows what's still missing from yo
 
 - Each row shows the material, how many are stored in your Material Boxes out of how many are needed, and in gray how many you're **carrying** right now (`+8`).
 - Amounts are red when none are stored and yellow when some are.
-- Finished materials drop off the list. When everything is gathered it reads **All materials gathered!**
+- Finished materials drop off the list, and so do ones you've [crossed off](materials-list.md#crossing-off-a-material). When everything is gathered it reads **All materials gathered!**
 - If more materials are missing than fit, a line reads `+N more`.
 - If some Material Boxes haven't been opened since you joined, a gray line says so (`2 boxes not checked since you joined`). Their counts are from the last time you saw inside them, so they may be out of date. With **Auto-refresh boxes** on, they're checked as soon as you're within reach. See [Keeping counts up to date](material-boxes.md#keeping-counts-up-to-date).
 

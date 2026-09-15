@@ -27,7 +27,7 @@ The most recently saved list is at the top. Names that are too long to fit are s
 
 ## What a saved list remembers
 
-- **Its materials.**
+- **Its materials**, including which ones are [crossed off](materials-list.md#crossing-off-a-material). Crossing a material off or back on is saved to the list by itself, and doesn't count as an unsaved change.
 - **Its replacements**, for example oak wood → oak logs. Importing into the list again applies them automatically. Replacements follow chains: oak wood → oak logs, then oak logs → spruce logs, becomes oak wood → spruce logs. Changing an item back removes the replacement.
 - **Its Material Boxes, separately for each world or server.**
 
