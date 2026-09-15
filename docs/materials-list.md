@@ -12,7 +12,7 @@ Open it with **B**, `/materials`, or the **Materials List...** button next to an
   - how many Material Boxes you have
   - a red warning if your boxes need more empty slots (`Add Material Boxes: 34 more slots needed`)
   - a hint to add one if you have none
-- **The list:** one row per material, with `stored / needed`.
+- **The list:** one row per material, with a checkbox for [crossing it off](#crossing-off-a-material) and `stored / needed`.
 - **Bottom buttons:** **Lists...** ([saved lists](saved-lists.md)), **Boxes...** ([the Boxes screen](material-boxes.md#the-boxes-screen)), **Done**, and a small comparator button that opens the [settings](settings-and-controls.md#settings-screen).
 
 ## Reading the list
@@ -22,6 +22,7 @@ Open it with **B**, `/materials`, or the **Materials List...** button next to an
 | Red | None stored yet |
 | Yellow | Some stored |
 | Green, with the name crossed out | Enough stored. Crossed off the list. |
+| Gray, with the name crossed out and the checkbox filled in | [Crossed off](#crossing-off-a-material) by hand |
 
 "Stored" means in your Material Boxes, including inside shulker boxes kept in them. Items you're carrying don't count until you put them in a box, but the [HUD](hud.md) shows them. Boxes whose block is [missing](material-boxes.md#breaking-and-moving-boxes) don't count.
 
@@ -32,7 +33,7 @@ Items that no longer exist (for example from a removed mod) are shown in red as 
 - Type in the **search box** to filter by item name or id. The header shows `12 of 55`.
 - The **Sort** button cycles through:
   - **Sort: List**: import order
-  - **Sort: Missing**: most still needed first, finished items last
+  - **Sort: Missing**: most still needed first, then finished items, then crossed-off ones
   - **Sort: A-Z**: alphabetical
 
 ## Replacing an item or changing its amount
@@ -53,6 +54,17 @@ If you replace an item with one that's already on the list, the two are merged a
 - Click anywhere else, or press **Esc**, to keep it.
 
 You can also click the material and use **Remove** in the editor.
+
+## Crossing off a material
+
+Click the **checkbox** at the start of a row to cross that material off without removing it, for example once you've started building with it. A crossed-off material:
+- stays on the list, grayed out and crossed out, with its checkbox filled in
+- isn't highlighted in your Material Boxes, and gets no ghost slots
+- isn't counted as missing, so it leaves the [HUD](hud.md) and what **Copy** copies
+
+Click the checkbox again to need it again. Adding more of the same item with **Add to List** un-crosses it too. Crossing off is saved with the list, and doesn't count as an unsaved change to a [saved list](saved-lists.md).
+
+To hide the highlights for every material at once, use [Hide Highlights](material-boxes.md#hiding-the-highlights).
 
 ## Copy
 

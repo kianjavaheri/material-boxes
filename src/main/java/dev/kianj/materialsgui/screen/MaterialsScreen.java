@@ -55,6 +55,11 @@ public class MaterialsScreen extends Screen {
 	private static final int RED = 0xFFFF5555;
 	private static final int YELLOW = 0xFFFFD040;
 	private static final int GREEN = 0xFF55FF55;
+	private static final int CROSSED_OFF = 0xFF808080;
+	/** Each row: the cross-off checkbox, the item, then its name. */
+	private static final int CHECK_SIZE = 10;
+	private static final int ICON_X = 13;
+	private static final int NAME_X = 33;
 
 	private enum Sort {
 		LIST("Sort: List"), MISSING("Sort: Missing"), NAME("Sort: A-Z");
@@ -292,6 +297,8 @@ public class MaterialsScreen extends Screen {
 			Project.MaterialEntry existing = project.materials.stream().filter(m -> m.item.equals(id)).findFirst().orElse(null);
 			if (existing != null) {
 				existing.count = MaterialParser.addClamped(existing.count, e.getValue());
+				// More of it is needed, so it isn't done with any more.
+				existing.crossedOff = false;
 			} else {
 				project.materials.add(new Project.MaterialEntry(id, e.getValue()));
 			}
@@ -456,6 +463,10 @@ public class MaterialsScreen extends Screen {
 			return true;
 		}
 		int index = rows.get(position).index;
+		if (event.button() == 0 && onCheckbox(event.x())) {
+			toggleCrossedOff(project.materials.get(index));
+			return true;
+		}
 		if (event.button() == 0) {
 			this.minecraft.gui.setScreen(new EditMaterialScreen(this, index));
 			return true;
@@ -474,6 +485,28 @@ public class MaterialsScreen extends Screen {
 			return true;
 		}
 		return super.keyPressed(event);
+	}
+
+	/** Crosses a material off (done with it, but kept on the list), or makes it needed again. */
+	private void toggleCrossedOff(Project.MaterialEntry entry) {
+		entry.crossedOff = !entry.crossedOff;
+		ProjectStore.changed();
+		setStatus(entry.crossedOff
+			? "Crossed off " + displayName(entry) + ". It isn't highlighted or counted as missing any more."
+			: displayName(entry) + " is needed again.", GRAY);
+	}
+
+	/** Whether x is over the rows' cross-off checkboxes. */
+	private boolean onCheckbox(double x) {
+		return x >= listLeft - 2 && x < listLeft + CHECK_SIZE + 1;
+	}
+
+	private void checkbox(GuiGraphicsExtractor graphics, int x, int y, boolean checked, boolean hot) {
+		graphics.fill(x, y, x + CHECK_SIZE, y + CHECK_SIZE, hot ? WHITE : 0xFF8B8B8B);
+		graphics.fill(x + 1, y + 1, x + CHECK_SIZE - 1, y + CHECK_SIZE - 1, 0xFF202020);
+		if (checked) {
+			graphics.fill(x + 2, y + 2, x + CHECK_SIZE - 2, y + CHECK_SIZE - 2, GREEN);
+		}
 	}
 
 	private static String displayName(Project.MaterialEntry entry) {
@@ -566,7 +599,8 @@ public class MaterialsScreen extends Screen {
 		scroll = Math.min(scroll, maxScroll);
 		int hovered = rowAt(mouseX, mouseY);
 		boolean hoveringMaterial = hovered >= 0 && hovered < rows.size() && rows.get(hovered).index >= 0;
-		graphics.enableScissor(listLeft, listTop, listRight, listBottom);
+		boolean hoveringCheckbox = hoveringMaterial && pendingRemoval == null && onCheckbox(mouseX);
+		graphics.enableScissor(listLeft - 2, listTop, listRight, listBottom);
 		int y = listTop - scroll;
 		boolean hoveringRemoval = false;
 		for (int i = 0; i < rows.size(); i++) {
@@ -579,16 +613,21 @@ public class MaterialsScreen extends Screen {
 				} else if (i == hovered && hoveringMaterial) {
 					graphics.fill(listLeft - 2, y - 1, listRight, y + ROW - 1, 0x30FFFFFF);
 				}
+				if (row.index >= 0) {
+					checkbox(graphics, listLeft, y + 3, row.crossedOff, i == hovered && hoveringCheckbox);
+				}
 				if (row.item != null) {
-					graphics.item(new ItemStack(row.item), listLeft, y);
+					graphics.item(new ItemStack(row.item), listLeft + ICON_X, y);
 				}
 				String ask = "Remove?";
 				int amountWidth = removing ? this.font.width(ask) + 22 : row.amount == null ? 0 : this.font.width(row.amount) + 6;
 				Component name = row.name;
-				if (this.font.width(name) > listRight - listLeft - 20 - amountWidth) {
-					name = Component.literal(this.font.plainSubstrByWidth(name.getString(), listRight - listLeft - 28 - amountWidth) + "...");
+				if (this.font.width(name) > listRight - listLeft - NAME_X - amountWidth) {
+					// Keeps the strikethrough of a crossed-off material.
+					name = Component.literal(this.font.plainSubstrByWidth(name.getString(), listRight - listLeft - NAME_X - 8 - amountWidth) + "...")
+						.withStyle(name.getStyle());
 				}
-				graphics.text(this.font, name, listLeft + 20, y + 4, row.nameColor, true);
+				graphics.text(this.font, name, listLeft + NAME_X, y + 4, row.nameColor, true);
 				if (removing) {
 					// The X that confirms the removal.
 					int bx = listRight - 14;
@@ -606,13 +645,19 @@ public class MaterialsScreen extends Screen {
 		graphics.disableScissor();
 		if (hoveringRemoval) {
 			graphics.setTooltipForNextFrame(this.font, Component.literal("Click the X to remove it. Click anywhere else to keep it."), mouseX, mouseY);
+		} else if (hoveringCheckbox) {
+			graphics.setTooltipForNextFrame(this.font, Component.literal(rows.get(hovered).crossedOff
+				? "Crossed off. Click to need it again."
+				: "Cross it off when you're done with it, e.g. once you're building with it. It stays on the list, but isn't highlighted or counted as missing."),
+				mouseX, mouseY);
 		} else if (hoveringMaterial) {
 			graphics.setTooltipForNextFrame(this.font, Component.literal("Click to replace it or change the amount. Right-click to remove."), mouseX, mouseY);
 		}
 	}
 
 	/** A list row; {@code index} is the material's position in the project, or -1 for an unrecognized line. */
-	private record Row(int index, @Nullable Item item, Component name, int nameColor, @Nullable String amount, int amountColor, long missing) {}
+	private record Row(int index, @Nullable Item item, Component name, int nameColor, @Nullable String amount, int amountColor, long missing,
+		boolean crossedOff) {}
 
 	/** The material rows, filtered by the search box and sorted by the chosen order, then any unrecognized lines. */
 	private List<Row> rows(Project project, Layout layout) {
@@ -621,14 +666,18 @@ public class MaterialsScreen extends Screen {
 		for (int i = 0; i < project.materials.size(); i++) {
 			Project.MaterialEntry m = project.materials.get(i);
 			Item item = Layout.resolve(m.item);
-			if (item == null) {
-				if (query.isEmpty() || m.item.toLowerCase(Locale.ROOT).contains(query)) {
-					rows.add(new Row(i, null, Component.literal(m.item + " (unknown item)"), RED, m.count + "", RED, m.count));
-				}
+			Component displayName = item == null ? Component.literal(m.item + " (unknown item)") : new ItemStack(item).getHoverName();
+			if (!query.isEmpty() && !displayName.getString().toLowerCase(Locale.ROOT).contains(query) && !m.item.toLowerCase(Locale.ROOT).contains(query)) {
 				continue;
 			}
-			Component displayName = new ItemStack(item).getHoverName();
-			if (!query.isEmpty() && !displayName.getString().toLowerCase(Locale.ROOT).contains(query) && !m.item.contains(query)) {
+			if (m.crossedOff) {
+				// Done with, however many are stored. Sorted last by what's missing.
+				String amount = item == null ? m.count + "" : layout.stored(item) + " / " + m.count;
+				rows.add(new Row(i, item, displayName.copy().withStyle(ChatFormatting.STRIKETHROUGH), CROSSED_OFF, amount, CROSSED_OFF, Long.MIN_VALUE, true));
+				continue;
+			}
+			if (item == null) {
+				rows.add(new Row(i, null, displayName, RED, m.count + "", RED, m.count, false));
 				continue;
 			}
 			int stored = layout.stored(item);
@@ -636,7 +685,7 @@ public class MaterialsScreen extends Screen {
 			// Materials that are fully stored in Material Boxes get crossed off.
 			Component name = done ? displayName.copy().withStyle(ChatFormatting.STRIKETHROUGH) : displayName;
 			int color = done ? GREEN : stored > 0 ? YELLOW : RED;
-			rows.add(new Row(i, item, name, done ? GRAY : WHITE, stored + " / " + m.count, color, (long) m.count - stored));
+			rows.add(new Row(i, item, name, done ? GRAY : WHITE, stored + " / " + m.count, color, (long) m.count - stored, false));
 		}
 		switch (sort) {
 			case MISSING -> rows.sort(Comparator.comparingLong((Row r) -> r.missing).reversed());
@@ -645,7 +694,7 @@ public class MaterialsScreen extends Screen {
 		}
 		if (query.isEmpty()) {
 			for (String line : unresolved) {
-				rows.add(new Row(-1, null, Component.literal("? " + line), RED, null, RED, 0));
+				rows.add(new Row(-1, null, Component.literal("? " + line), RED, null, RED, 0, false));
 			}
 		}
 		return rows;

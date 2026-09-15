@@ -276,6 +276,72 @@ class MaterialParserTest {
 	}
 
 	@Test
+	void otherListsCopiesOfAReattachedShulkerMatchByWhereTheyWereLastSeen() {
+		Project project = new Project();
+		// Another list's copy of the box, recorded before 3 more glass went in.
+		Project.BoxEntry stale = box(project, A, 27, 0, "minecraft:stone", 64);
+		stale.block = "minecraft:red_shulker_box";
+		stale.pickedUp = true;
+
+		String[] items = new String[27];
+		int[] counts = new int[27];
+		items[0] = "minecraft:stone";
+		counts[0] = 64;
+		items[5] = "minecraft:glass";
+		counts[5] = 3;
+
+		assertEquals(-1, Project.findPickedUp(project.boxes, "minecraft:red_shulker_box", items, counts, null));
+		assertEquals(-1, Project.findPickedUp(project.boxes, "minecraft:red_shulker_box", items, counts, B));
+		assertEquals(-1, Project.findPickedUp(project.boxes, "minecraft:blue_shulker_box", items, counts, A));
+		assertEquals(0, Project.findPickedUp(project.boxes, "minecraft:red_shulker_box", items, counts, A));
+		stale.placeAt(B);
+		assertFalse(stale.pickedUp);
+		assertEquals(0, project.indexOfBox(B));
+	}
+
+	@Test
+	void crossedOffMaterialsStayOnTheListButArentNeeded() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 100));
+		project.materials.add(new Project.MaterialEntry("minecraft:glass", 10));
+		project.materials.getFirst().crossedOff = true;
+		box(project, A, 27, 0, "minecraft:stone", 5);
+
+		Layout layout = Layout.compute(project);
+		assertEquals(0, layout.needed(Items.STONE));
+		assertEquals(5, layout.stored(Items.STONE));
+		// No highlight on the stone that's there, and no ghosts for the rest of it.
+		assertNull(layout.plan(A, 0));
+		assertEquals(new Layout.SlotPlan(Items.GLASS, 10), layout.plan(A, 1));
+		assertNull(layout.plan(A, 2));
+		assertFalse(layout.missingText(project).contains("Stone"));
+		assertTrue(layout.missingText(project).contains("Glass"));
+		assertEquals(2, project.materials.size());
+	}
+
+	@Test
+	void crossingOffIsSavedButIsntAnUnsavedChange() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 10));
+		project.materials.getFirst().crossedOff = true;
+		SavedLists.SavedList list = SavedLists.snapshot("Castle", project);
+		assertTrue(list.materials.getFirst().crossedOff);
+		project.materials.getFirst().crossedOff = false;
+		assertTrue(SavedLists.matches(list, project));
+	}
+
+	@Test
+	void mergingMaterialsKeepsThemNeededUnlessBothWereCrossedOff() {
+		Project project = new Project();
+		project.materials.add(new Project.MaterialEntry("minecraft:oak_wood", 5));
+		project.materials.add(new Project.MaterialEntry("minecraft:oak_log", 10));
+		project.materials.get(0).crossedOff = true;
+		project.replaceMaterial(0, "minecraft:oak_log", 5);
+		assertEquals(1, project.materials.size());
+		assertFalse(project.materials.getFirst().crossedOff);
+	}
+
+	@Test
 	void replacingAMaterialKeepsItsAmountOrMergesWithTheSameItem() {
 		Project project = new Project();
 		project.materials.add(new Project.MaterialEntry("minecraft:oak_wood", 95));

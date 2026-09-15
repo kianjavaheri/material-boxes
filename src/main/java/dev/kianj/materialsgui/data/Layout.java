@@ -41,7 +41,8 @@ public final class Layout {
 		Layout layout = new Layout();
 		for (Project.MaterialEntry entry : project.materials) {
 			Item item = resolve(entry.item);
-			if (item != null && entry.count > 0) {
+			// Crossed-off materials stay on the list but aren't needed any more.
+			if (item != null && entry.count > 0 && !entry.crossedOff) {
 				layout.needed.merge(item, entry.count, Layout::sum);
 			}
 		}
@@ -171,7 +172,7 @@ public final class Layout {
 			}
 		});
 		for (Project.MaterialEntry m : project.materials) {
-			if (resolve(m.item) == null) {
+			if (resolve(m.item) == null && !m.crossedOff) {
 				sb.append(m.count).append(' ').append(m.item).append('\n');
 			}
 		}

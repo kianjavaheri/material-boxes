@@ -2,6 +2,7 @@ package dev.kianj.materialsgui.box;
 
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
+import dev.kianj.materialsgui.data.ModConfig;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.client.Minecraft;
@@ -25,7 +26,8 @@ public final class SlotOverlay {
 
 	public static Layout.@Nullable SlotPlan planFor(AbstractContainerScreen<?> screen, Slot slot) {
 		BoxKey key = BoxTracker.keyFor(screen);
-		if (key == null || slot.container instanceof Inventory) {
+		// Hidden highlights hide the ghosts, amounts and progress tooltips too.
+		if (key == null || slot.container instanceof Inventory || !ModConfig.get().highlightSlots) {
 			return null;
 		}
 		// While a stack is dragged across slots, vanilla draws a preview stack and count in them; don't draw over it.

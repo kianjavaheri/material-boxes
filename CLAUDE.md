@@ -51,6 +51,9 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 - Anything still missing becomes ghost plans in empty slots, in list order across boxes in the order they were added. Picked-up shulker boxes get none.
 - Where the boxes hold more than the list needs, the excess is cut from the last stacks, so a slot can read 7/5.
 - Amounts are clamped to `Integer.MAX_VALUE`, never overflowed.
+- Crossed-off materials (`MaterialEntry.crossedOff`, the checkbox on a Materials List row) aren't needed: no plans, and not missing. They stay on the list. `SavedLists.matches` ignores the flag, and `syncBoxes` copies it to the current saved list, so crossing off isn't an unsaved change.
+
+`SlotOverlay.planFor` returns null while `ModConfig.highlightSlots` is off (the Hide Highlights button), which hides the tints, ghosts and slot tooltips; `ShiftRouter.handle` then leaves shift-click to vanilla.
 
 `SlotOverlay`, `SlotTooltip`, `ShiftRouter`, `MaterialsHud` and `MaterialsScreen` all read `ProjectStore.layout()`, so don't duplicate this logic.
 
@@ -59,7 +62,8 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
   - The click is forgotten when any other container screen opens, on `UseEntityCallback`, and when the server acknowledges the click's block-prediction sequence without a screen (`ClientLevelMixin` on `handleBlockChangedAck`; `MultiPlayerGameModeMixin` records the sequence after `useItemOn`). The server sends any menu a click opens before that acknowledgement.
 - `BoxValidator` runs every 10 ticks on boxes in loaded chunks, for the current list and every saved list in this world. A box whose block is gone for two checks in a row is removed if the player broke it (`ClientPlayerBlockBreakEvents`), marked `pickedUp` if it's a shulker box, and otherwise marked `missing`: `Layout` ignores it, and it recovers if the block comes back. A missing box isn't removed because it can look gone when it isn't, e.g. another backend behind the same proxy address.
   - Double-chest splits and merges go through `reshape`. The menu lists the `ChestType.RIGHT` half in slots 0-26, and which half that is depends on facing, so the surviving half's slots are copied across. If the stored (lower) half is broken, the box moves to the other half.
-- `ContainerHooks.tryReattach` recognizes a re-placed picked-up shulker by its block id and exact contents. It waits until the menu's `stateId != 0`, meaning the contents have arrived.
+- `PlacedShulkers` reattaches a picked-up shulker as soon as the player places it: its `UseBlockCallback` records the placement position (`BlockPlaceContext`) and the item's contents, and its tick waits up to 5 seconds for that block to appear. `ContainerHooks.tryReattach` is the fallback when it's opened (placed by someone else, say), and waits until the menu's `stateId != 0`, meaning the contents have arrived. Both match by block id and exact contents.
+  - `PlacedShulkers.reattach` also reattaches the box in every saved list in this world. Other lists' copies can have older contents, so they also match by where the current list last saw the box (`Project.findPickedUp`'s `lastSeen`).
 - `BoxRefresher` keeps snapshots current without the player opening boxes. A box is "fresh" once its contents are seen this session. It stops being fresh when its chunk unloads, or when its lid opens (chest openness, shulker animation, barrel `OPEN`) while it isn't ours. With `ModConfig.refreshBoxes` on, a non-fresh, closed box within reach and in line of sight gets a real `useItemOn` click. `MenuScreensMixin` then builds the resulting menu without a screen, and the box is read once `stateId != 0` and closed.
   - A menu is only taken as the box if it's the expected type and arrives before the click's acknowledgement (`onBlockChangedAck`). An acknowledgement with no menu means the box didn't open.
   - `MinecraftMixin` cancels `startUseItem` while a check runs, so the player can't open another container meanwhile. The server's close handler ignores the container id, so the refresher's close would otherwise close whatever the player had just opened. The close is also only sent while the hidden menu is still `player.containerMenu`.
@@ -98,7 +102,7 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 - **Game test** (`src/gametest/.../MaterialBoxGameTest`) is one long scenario.
   - `TestInput` can't send modifier keys, so shift-clicks go through `MouseHandlerAccessor.invokeOnButton` with the shift modifier.
   - Minecraft ignores the first cursor move after a screen opens, so `hoverChestSlot` nudges the cursor first.
-  - The run's `build/run/clientGameTest/config` persists between runs, so reset any state the test depends on (for example `ModConfig.importPanelOpen`, `refreshBoxes`, `hudCompact`, and saved lists).
+  - The run's `build/run/clientGameTest/config` persists between runs, so reset any state the test depends on (for example `ModConfig.importPanelOpen`, `refreshBoxes`, `hudCompact`, `highlightSlots`, and saved lists).
   - `/setblock ... air` isn't the player breaking a block, so a box there becomes `missing` rather than removed. To test removal, call `BoxValidator.onPlayerBreak` first.
 - **Layout checks at other window sizes.** `checkScreensAt` takes screenshots of every screen at the narrowest GUI (a 640×480 window, so 320×240) and at 1920×1080 with GUI scale 2 (960×540). It also asserts that the Material Box buttons never overlap the container.
 - **Real mouse clicks.** `clickAt` clicks real mouse buttons at GUI coordinates, for example the X confirmation on a list row.

@@ -35,6 +35,7 @@ Open it any of these ways:
 | **Rows** | How many materials the full HUD lists: 4, 6, 8, 12 or 16. The compact HUD always shows 3. |
 | **Auto-refresh boxes** | Keeps Material Box counts up to date when other people (or you, from another computer) change a box. See [Keeping counts up to date](material-boxes.md#keeping-counts-up-to-date). On by default. |
 | **Import panel** | Whether the Materials List opens with the import panel shown or hidden. It still opens by itself when the list is empty. |
+| **Slot highlights** | The colors, ghost items and amounts in Material Box slots. The same as the **Hide Highlights** button beside every Material Box. See [Hiding the highlights](material-boxes.md#hiding-the-highlights). On by default. |
 
 ## Where data is saved
 

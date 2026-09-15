@@ -85,7 +85,7 @@ public final class SavedLists {
 		return list;
 	}
 
-	/** True if the project's list has the same materials and replacements as this saved list. */
+	/** True if the project's list has the same materials and replacements as this saved list. Crossing off doesn't matter. */
 	public static boolean matches(SavedList list, Project project) {
 		if (list.materials.size() != project.materials.size() || !list.replacements.equals(project.replacements)) {
 			return false;
@@ -157,10 +157,24 @@ public final class SavedLists {
 		return true;
 	}
 
-	/** Keeps the current saved list's Material Boxes in this world the same as the project's. */
+	/**
+	 * Keeps the current saved list's Material Boxes in this world, and which materials are crossed off, the same as the
+	 * project's. Crossing off is progress, like box contents, so it doesn't count as an unsaved change.
+	 */
 	public static void syncBoxes(Project project, String worldKey) {
 		SavedList list = find(project.listName);
-		if (list != null && putBoxes(list, worldKey, project.boxes)) {
+		if (list == null) {
+			return;
+		}
+		boolean changed = putBoxes(list, worldKey, project.boxes);
+		if (matches(list, project)) {
+			for (int i = 0; i < list.materials.size(); i++) {
+				boolean crossedOff = project.materials.get(i).crossedOff;
+				changed |= list.materials.get(i).crossedOff != crossedOff;
+				list.materials.get(i).crossedOff = crossedOff;
+			}
+		}
+		if (changed) {
 			write();
 		}
 	}
@@ -220,7 +234,9 @@ public final class SavedLists {
 	private static List<Project.MaterialEntry> copy(List<Project.MaterialEntry> materials) {
 		List<Project.MaterialEntry> copy = new ArrayList<>();
 		for (Project.MaterialEntry m : materials) {
-			copy.add(new Project.MaterialEntry(m.item, m.count));
+			Project.MaterialEntry entry = new Project.MaterialEntry(m.item, m.count);
+			entry.crossedOff = m.crossedOff;
+			copy.add(entry);
 		}
 		return copy;
 	}

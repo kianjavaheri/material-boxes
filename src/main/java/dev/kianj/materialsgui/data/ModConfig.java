@@ -30,6 +30,8 @@ public final class ModConfig {
 	public boolean hudCompact = false;
 	/** Open Material Boxes within reach in the background to read contents that may have changed. */
 	public boolean refreshBoxes = true;
+	/** Color, ghost items and amounts in Material Box slots. Turned off while building, when boxes are being emptied. */
+	public boolean highlightSlots = true;
 
 	public static Path dir() {
 		return FabricLoader.getInstance().getConfigDir().resolve("materialsgui");

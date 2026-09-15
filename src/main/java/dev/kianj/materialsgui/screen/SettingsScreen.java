@@ -40,10 +40,11 @@ public class SettingsScreen extends Screen {
 		int half = (width - 4) / 2;
 		left = (this.width - width) / 2;
 		int right = left + half + 4;
-		keyY = 42;
+		// Packed to fit a 240-high GUI, the smallest there is, above the Done button.
+		keyY = 34;
 		modelY = keyY + 34;
-		hudY = modelY + 39;
-		otherY = hudY + 63;
+		hudY = modelY + 36;
+		otherY = hudY + 58;
 
 		EditBox apiKey = new EditBox(this.font, left, keyY, width, 20, Component.literal("Anthropic API key"));
 		apiKey.setMaxLength(256);
@@ -75,6 +76,9 @@ public class SettingsScreen extends Screen {
 			left, otherY, half, () -> config.refreshBoxes = !config.refreshBoxes);
 		toggle("Import panel: " + (config.importPanelOpen ? "Open" : "Hidden"), "Whether the Materials List opens with its import panel showing",
 			right, otherY, half, () -> config.importPanelOpen = !config.importPanelOpen);
+		toggle("Slot highlights: " + onOff(config.highlightSlots),
+			"The colors, ghost items and amounts in Material Box slots. Turn them off while you build. Also a button beside every Material Box.",
+			left, otherY + 24, half, () -> config.highlightSlots = !config.highlightSlots);
 
 		addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose()).bounds(left, this.height - 28, width, 20).build());
 	}

@@ -2,6 +2,7 @@ package dev.kianj.materialsgui.gametest;
 
 import dev.kianj.materialsgui.box.BoxRefresher;
 import dev.kianj.materialsgui.box.BoxValidator;
+import dev.kianj.materialsgui.box.SlotOverlay;
 import dev.kianj.materialsgui.box.SlotTooltip;
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
@@ -37,7 +38,11 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -88,6 +93,7 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 				ModConfig.get().importPanelOpen = true;
 				ModConfig.get().hudCompact = false;
 				ModConfig.get().refreshBoxes = true;
+				ModConfig.get().highlightSlots = true;
 				Project project = ProjectStore.project();
 				project.materials.clear();
 				project.materials.add(new Project.MaterialEntry("minecraft:stone", 100));
@@ -170,6 +176,26 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 				}
 			});
 			ctx.takeScreenshot("3-glass-moved-by-hand");
+
+			// Hide Highlights (for building) hides the colors and the progress lines, until Show Highlights.
+			ctx.clickScreenButton("Hide Highlights");
+			hoverChestSlot(ctx, 20);
+			ctx.runOnClient(mc -> {
+				AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) mc.gui.screen();
+				List<String> tooltip = Screen.getTooltipFromItem(mc, mc.player.containerMenu.getSlot(20).getItem())
+					.stream().map(Component::getString).toList();
+				if (ModConfig.get().highlightSlots || SlotOverlay.planFor(screen, screen.getMenu().getSlot(20)) != null || tooltip.contains("5/10")) {
+					throw new AssertionError("Hide Highlights should hide the slot highlight and its tooltip lines: " + tooltip);
+				}
+			});
+			ctx.takeScreenshot("3a-highlights-hidden");
+			ctx.clickScreenButton("Show Highlights");
+			ctx.runOnClient(mc -> {
+				AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) mc.gui.screen();
+				if (SlotOverlay.planFor(screen, screen.getMenu().getSlot(20)) == null) {
+					throw new AssertionError("Show Highlights should bring the highlights back");
+				}
+			});
 
 			ctx.getInput().pressKey(ESCAPE);
 			ctx.waitTicks(5);
@@ -289,20 +315,37 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 			ctx.setScreen(() -> null);
 			ctx.waitTicks(2);
 
+			// Placing it again reconnects it straight away, without opening it: the item carries its contents.
 			BlockPos moved = chest.east();
-			sp.getServer().runCommand("setblock " + moved.getX() + " " + moved.getY() + " " + moved.getZ() + " minecraft:shulker_box");
-			sp.getServer().runOnServer(server -> fillShulker(server, moved));
+			sp.getServer().runOnServer(server -> {
+				List<ItemStack> items = new ArrayList<>();
+				for (int i = 0; i < 27; i++) {
+					items.add(ItemStack.EMPTY);
+				}
+				items.set(0, new ItemStack(Items.STONE, 64));
+				items.set(5, new ItemStack(Items.GLASS, 3));
+				ItemStack shulker = new ItemStack(Items.SHULKER_BOX);
+				shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+				// The off hand, so nothing the test uses later is replaced.
+				server.getPlayerList().getPlayers().getFirst().setItemInHand(InteractionHand.OFF_HAND, shulker);
+			});
 			sp.getConnection().waitForClientboundPackets();
 			ctx.waitTicks(2);
-			openContainer(ctx, moved, ShulkerBoxScreen.class);
+			ctx.runOnClient(mc -> mc.gameMode.useItemOn(mc.player, InteractionHand.OFF_HAND,
+				new BlockHitResult(Vec3.atCenterOf(moved.below()).add(0, 0.5, 0), Direction.UP, moved.below(), false)));
 			ctx.waitFor(mc -> !ProjectStore.project().boxes.getFirst().pickedUp);
 			ctx.runOnClient(mc -> {
 				if (!ProjectStore.project().boxes.getFirst().key().equals(BoxKey.of("minecraft:overworld", moved))) {
 					throw new AssertionError("The shulker box should reconnect at its new position");
 				}
+				if (mc.gui.screen() != null) {
+					throw new AssertionError("The shulker box should reconnect without being opened");
+				}
 			});
+			ctx.setScreen(() -> new BoxesScreen(null));
+			ctx.waitTicks(2);
 			ctx.takeScreenshot("8-shulker-reattached");
-			ctx.getInput().pressKey(ESCAPE);
+			ctx.setScreen(() -> null);
 			ctx.waitTicks(2);
 
 			// Replace a material with a different item, keeping the amount.
@@ -535,6 +578,23 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 				return new int[] {search.getX(), search.getY() + 37, clear.getX() + clear.getWidth()};
 			});
 			int glassRowY = list[1] + 18 + 9;
+			// The checkbox at the start of a row crosses the material off without removing it, and back.
+			clickAt(ctx, list[0] + 4, glassRowY, 0);
+			ctx.runOnClient(mc -> {
+				Project.MaterialEntry glass = ProjectStore.project().materials.get(1);
+				if (!glass.item.equals("minecraft:glass") || !glass.crossedOff || ProjectStore.layout().needed(Items.GLASS) != 0
+					|| !(mc.gui.screen() instanceof MaterialsScreen)) {
+					throw new AssertionError("Clicking the checkbox should cross Glass off and stay on the list");
+				}
+			});
+			expectMaterials(ctx, 2);
+			ctx.takeScreenshot("17b-crossed-off");
+			clickAt(ctx, list[0] + 4, glassRowY, 0);
+			ctx.runOnClient(mc -> {
+				if (ProjectStore.project().materials.get(1).crossedOff || ProjectStore.layout().needed(Items.GLASS) == 0) {
+					throw new AssertionError("Clicking the checkbox again should make Glass needed again");
+				}
+			});
 			clickAt(ctx, list[0] + 60, glassRowY, 1);
 			expectMaterials(ctx, 2);
 			ctx.getInput().pressKey(ESCAPE);
@@ -678,7 +738,8 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 	}
 
 	private static boolean isOurButton(String label) {
-		return label.startsWith("+ Material Box") || label.startsWith("Remove Box") || label.equals("Materials List...") || label.equals("Deposit All");
+		return label.startsWith("+ Material Box") || label.startsWith("Remove Box") || label.equals("Materials List...") || label.equals("Deposit All")
+			|| label.endsWith(" Highlights");
 	}
 
 	/** Clicks at a GUI position with a real mouse button (0 left, 1 right). */

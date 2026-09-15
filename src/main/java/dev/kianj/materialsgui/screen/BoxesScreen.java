@@ -1,6 +1,7 @@
 package dev.kianj.materialsgui.screen;
 
 import dev.kianj.materialsgui.box.BoxTracker;
+import dev.kianj.materialsgui.box.ContainerHooks;
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
@@ -11,14 +12,11 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.NonNullList;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import org.jspecify.annotations.Nullable;
 
 /** Lists the saved Material Boxes and lets you remove them, e.g. ones whose block is gone. */
@@ -167,17 +165,8 @@ public class BoxesScreen extends Screen {
 			if (stack.isEmpty() || !BuiltInRegistries.ITEM.getKey(stack.getItem()).toString().equals(box.block)) {
 				continue;
 			}
-			NonNullList<ItemStack> contents = NonNullList.withSize(box.size, ItemStack.EMPTY);
-			stack.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(contents);
-			String[] items = new String[box.size];
-			int[] counts = new int[box.size];
-			for (int s = 0; s < box.size; s++) {
-				if (!contents.get(s).isEmpty()) {
-					items[s] = BuiltInRegistries.ITEM.getKey(contents.get(s).getItem()).toString();
-					counts[s] = contents.get(s).getCount();
-				}
-			}
-			if (box.hasContents(items, counts)) {
+			ContainerHooks.Contents contents = ContainerHooks.contentsOf(stack, box.size);
+			if (box.hasContents(contents.items(), contents.counts())) {
 				return true;
 			}
 		}

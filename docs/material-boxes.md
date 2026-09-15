@@ -16,7 +16,7 @@ Ender chests can't be Material Boxes (they're shared between every place you ope
 
 Items already in the container **count toward the list right away**. Boxes are used in the order you add them. The header above the container shows its number and progress, for example `Material Box #1 of 3  5/12 slots done`, or `(nothing needed here)`.
 
-The **Materials List...** button opens the [Materials List](materials-list.md), and **Deposit All** is described [below](#deposit-all).
+The **Materials List...** button opens the [Materials List](materials-list.md), **Deposit All** is described [below](#deposit-all), and **Hide Highlights** turns the slot colors off (see [Hiding the highlights](#hiding-the-highlights)).
 
 ## Reading the slots
 
@@ -48,6 +48,14 @@ Hover a highlighted slot to see its progress:
 - **Empty (red) slots** show the item's name, a red `0/64`, the total across all your boxes (`All boxes: 36/100`), and a hint.
 - **Filled slots** add the same progress under the item's normal tooltip: yellow `3/5` for partly filled, green `5/5` when done, or `7/5` if there's extra.
 
+## Hiding the highlights
+
+Once you start building you take materials back out of your boxes, and every slot you empty turns red again. Click **Hide Highlights** beside any Material Box to turn off the colors, ghost items, amounts and progress tooltips in all of them. Click **Show Highlights** to bring them back. The same switch is in the [settings](settings-and-controls.md#settings-screen), and your choice is remembered.
+
+While the highlights are hidden, shift-click works as it normally does. **Deposit All** still fills the hidden slots, and the header still shows progress.
+
+To stop highlighting only some materials, [cross them off](materials-list.md#crossing-off-a-material) instead.
+
 ## Shift-click
 
 Shift-clicking an item in your inventory sends it to that item's highlighted slots in the open Material Box. Partial stacks are topped up first, then empty ghost slots. It places exactly the amount each slot needs, and anything left over goes back where it came from. Items with no highlighted slot in this box use normal shift-click, and so do items that can't stack with what's already in their slot (a different enchantment or name, say).
@@ -74,7 +82,9 @@ If you turn a single-chest Material Box into a double chest, or break one half o
 - **Shulker boxes** keep their items when broken, so a broken shulker Material Box is kept as **picked up**:
   - Its items still count toward your list.
   - It doesn't get new red slots, since you can't fill it while it's an item.
-  - When you place it again and open it, it reconnects as the same Material Box. It's recognized by its color and exact contents.
+  - When you place it again, it reconnects as the same Material Box straight away, without being opened. It's recognized by its color and exact contents, which a shulker box item carries with it.
+  - One placed some other way, such as by another player or a dispenser, reconnects when you open it.
+  - It reconnects in every [saved list](saved-lists.md) that uses it, not only the current one.
 
 Boxes are checked about twice a second, but only in loaded chunks of the dimension you're in. A box whose block disappeared while you were far away is noticed the next time you're nearby.
 

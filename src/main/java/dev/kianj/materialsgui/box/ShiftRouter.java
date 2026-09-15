@@ -2,6 +2,7 @@ package dev.kianj.materialsgui.box;
 
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
+import dev.kianj.materialsgui.data.ModConfig;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.mixin.AbstractContainerScreenAccessor;
 import java.util.ArrayList;
@@ -28,7 +29,9 @@ public final class ShiftRouter {
 	/** Returns true when the click was handled (and vanilla handling should be cancelled). */
 	public static boolean handle(AbstractContainerScreen<?> screen, MouseButtonEvent event) {
 		BoxKey key = BoxTracker.keyFor(screen);
-		if (key == null || event.button() != 0 || !event.hasShiftDown() || ProjectStore.project().indexOfBox(key) < 0) {
+		// With highlights hidden the target slots can't be seen, so shift-click does what it normally does.
+		if (key == null || event.button() != 0 || !event.hasShiftDown() || ProjectStore.project().indexOfBox(key) < 0
+			|| !ModConfig.get().highlightSlots) {
 			return false;
 		}
 		Slot source = ((AbstractContainerScreenAccessor) screen).materialsgui$getHoveredSlot();

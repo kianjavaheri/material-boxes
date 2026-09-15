@@ -2,11 +2,13 @@ package dev.kianj.materialsgui.box;
 
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
+import dev.kianj.materialsgui.data.ModConfig;
 import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.data.SavedLists;
 import dev.kianj.materialsgui.mixin.AbstractContainerScreenAccessor;
 import dev.kianj.materialsgui.screen.MaterialsScreen;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -75,9 +78,18 @@ public final class ContainerHooks {
 				: moved == 0 ? "Nothing in your inventory goes in this box" : "Deposited " + moved + " items"));
 		}).bounds(bx, top + 48, bw, 20).tooltip(Tooltip.create(Component.literal(
 			"Move everything on your list from your inventory into this box's highlighted slots"))).build();
+		Button highlights = Button.builder(highlightsLabel(), b -> {
+			ModConfig config = ModConfig.get();
+			config.highlightSlots = !config.highlightSlots;
+			config.save();
+			b.setMessage(highlightsLabel());
+		}).bounds(bx, top + 72, bw, 20).tooltip(Tooltip.create(Component.literal(
+			"Show or hide the slot colors, ghost items and amounts in every Material Box, e.g. while you build. "
+				+ "While they're hidden, shift-click works as usual."))).build();
 		Screens.getWidgets(screen).add(toggle);
 		Screens.getWidgets(screen).add(list);
 		Screens.getWidgets(screen).add(deposit);
+		Screens.getWidgets(screen).add(highlights);
 
 		ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> !ShiftRouter.handle(containerScreen, event));
 		// Refresh the layout from the live contents before slots are drawn, so highlights follow items as they move.
@@ -99,6 +111,10 @@ public final class ContainerHooks {
 			BoxTracker.detach(s);
 			BoxRefresher.closedByPlayer(key);
 		});
+	}
+
+	private static Component highlightsLabel() {
+		return Component.literal(ModConfig.get().highlightSlots ? "Hide Highlights" : "Show Highlights");
 	}
 
 	private static Component toggleLabel(BoxKey key) {
@@ -133,23 +149,33 @@ public final class ContainerHooks {
 		return box.setContents(contents.items(), contents.counts(), contents.nested());
 	}
 
-	record Contents(String[] items, int[] counts, Map<String, Integer> nested) {}
+	public record Contents(String[] items, int[] counts, Map<String, Integer> nested) {}
 
 	/**
 	 * Item id and count of the first {@code size} container slots (never the player's inventory), plus the totals of
 	 * what's inside any shulker boxes there.
 	 */
 	static Contents read(AbstractContainerMenu menu, int size) {
+		List<ItemStack> stacks = new ArrayList<>();
+		for (int i = 0; i < size && i < menu.slots.size() && !(menu.slots.get(i).container instanceof Inventory); i++) {
+			stacks.add(menu.slots.get(i).getItem());
+		}
+		return contents(stacks, size);
+	}
+
+	/** What a container item (a shulker box) holds, the same as {@link #read} sees once it's placed and opened. */
+	public static Contents contentsOf(ItemStack stack, int size) {
+		NonNullList<ItemStack> stacks = NonNullList.withSize(size, ItemStack.EMPTY);
+		stack.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY).copyInto(stacks);
+		return contents(stacks, size);
+	}
+
+	private static Contents contents(List<ItemStack> stacks, int size) {
 		String[] items = new String[size];
 		int[] counts = new int[size];
 		Map<String, Integer> nested = new LinkedHashMap<>();
-		List<Slot> slots = menu.slots;
-		for (int i = 0; i < size && i < slots.size(); i++) {
-			Slot slot = slots.get(i);
-			if (slot.container instanceof Inventory) {
-				break;
-			}
-			ItemStack stack = slot.getItem();
+		for (int i = 0; i < size && i < stacks.size(); i++) {
+			ItemStack stack = stacks.get(i);
 			if (!stack.isEmpty()) {
 				items[i] = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
 				counts[i] = stack.getCount();
@@ -163,21 +189,16 @@ public final class ContainerHooks {
 	}
 
 	/**
-	 * Recognises a picked-up shulker Material Box that has been placed again, by its colour and exact contents. The
-	 * contents only arrive after the screen opens (the menu's state id is 0 until the server sends them).
+	 * Recognises a picked-up shulker Material Box that has been placed again, by its colour and exact contents, in case it
+	 * wasn't recognised when it was placed (someone else placed it, say). The contents only arrive after the screen opens
+	 * (the menu's state id is 0 until the server sends them).
 	 */
 	private static boolean tryReattach(AbstractContainerScreen<?> screen, BoxKey key) {
-		Project project = ProjectStore.project();
-		if (project.indexOfBox(key) >= 0 || screen.getMenu().getStateId() == 0 || project.boxes.stream().noneMatch(b -> b.pickedUp)) {
+		if (screen.getMenu().getStateId() == 0 || !PlacedShulkers.anyPickedUp()) {
 			return false;
 		}
 		String block = BoxTracker.blockId(Minecraft.getInstance().level, new BlockPos(key.x(), key.y(), key.z()));
-		Contents contents = read(screen.getMenu(), BoxTracker.size());
-		if (project.reattach(key, block, contents.items(), contents.counts()) < 0) {
-			return false;
-		}
-		ProjectStore.changed();
-		return true;
+		return PlacedShulkers.reattach(key, block, read(screen.getMenu(), BoxTracker.size()));
 	}
 
 	private static void afterExtract(AbstractContainerScreen<?> screen, BoxKey key, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
@@ -212,7 +233,7 @@ public final class ContainerHooks {
 		List<String> others = SavedLists.otherListsUsing(key, ProjectStore.worldKey(), ProjectStore.project().listName);
 		if (!others.isEmpty()) {
 			int x = sideX(acc, screen.width);
-			int y = top + 74;
+			int y = top + 98;
 			graphics.text(mc.font, "Also in:", x, y, 0xFFA0A0A0, true);
 			for (String name : others) {
 				y += 10;

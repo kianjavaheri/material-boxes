@@ -5,6 +5,7 @@ import dev.kianj.materialsgui.box.BoxRefresher;
 import dev.kianj.materialsgui.box.BoxTracker;
 import dev.kianj.materialsgui.box.BoxValidator;
 import dev.kianj.materialsgui.box.ContainerHooks;
+import dev.kianj.materialsgui.box.PlacedShulkers;
 import dev.kianj.materialsgui.box.SlotTooltip;
 import dev.kianj.materialsgui.data.ModConfig;
 import dev.kianj.materialsgui.data.ProjectStore;
@@ -44,6 +45,8 @@ public class MaterialsGuiClient implements ClientModInitializer {
 
 		ClientTickEvents.END_CLIENT_TICK.register(BoxValidator::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(BoxRefresher::tick);
+		// After the validator, which may only now have marked a just-placed shulker box as picked up.
+		ClientTickEvents.END_CLIENT_TICK.register(PlacedShulkers::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (openKey.consumeClick()) {
 				openNextTick |= mc.gui.screen() == null;
@@ -82,6 +85,7 @@ public class MaterialsGuiClient implements ClientModInitializer {
 			BoxRefresher.reset();
 			BoxTracker.reset();
 			BoxValidator.reset();
+			PlacedShulkers.reset();
 			MaterialsScreen.clearUnresolved();
 			ProjectStore.load(mc);
 		});
@@ -98,6 +102,7 @@ public class MaterialsGuiClient implements ClientModInitializer {
 			}
 		});
 		UseBlockCallback.EVENT.register(BoxTracker::onUseBlock);
+		UseBlockCallback.EVENT.register(PlacedShulkers::onUseBlock);
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
 			// A container opened from an entity (a chest boat, say) isn't the block clicked before it.
 			if (level.isClientSide()) {

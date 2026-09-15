@@ -25,6 +25,11 @@ public final class Project {
 		/** Item registry id, e.g. "minecraft:stone". */
 		public String item;
 		public int count;
+		/**
+		 * Crossed off by hand: the player is done with it (building with it, say), so it's no longer needed, but it stays
+		 * on the list. It gets no highlights or ghosts, and isn't counted as missing.
+		 */
+		public boolean crossedOff;
 
 		public MaterialEntry(String item, int count) {
 			this.item = item;
@@ -74,6 +79,12 @@ public final class Project {
 			this.x = key.x();
 			this.y = key.y();
 			this.z = key.z();
+		}
+
+		/** A picked-up shulker box has been placed again at this position. */
+		public void placeAt(BoxKey key) {
+			moveTo(key);
+			pickedUp = false;
 		}
 
 		public boolean isEmptyAt(int slot) {
@@ -206,11 +217,28 @@ public final class Project {
 	 * colour) and its exact contents, which can't change while it's an item. Returns its index, or -1.
 	 */
 	public int reattach(BoxKey key, String block, String[] items, int[] counts) {
+		int index = findPickedUp(boxes, block, items, counts, null);
+		if (index >= 0) {
+			boxes.get(index).placeAt(key);
+		}
+		return index;
+	}
+
+	/**
+	 * Index of the picked-up box of this block with exactly these contents, or -1. If there's none and {@code lastSeen}
+	 * isn't null, a picked-up box of this block last seen there matches too: another saved list's copy of a box that was
+	 * just reattached, whose recorded contents can be older than the current list's.
+	 */
+	public static int findPickedUp(List<BoxEntry> boxes, String block, String[] items, int[] counts, @Nullable BoxKey lastSeen) {
 		for (int i = 0; i < boxes.size(); i++) {
 			BoxEntry box = boxes.get(i);
 			if (box.pickedUp && block.equals(box.block) && box.hasContents(items, counts)) {
-				box.moveTo(key);
-				box.pickedUp = false;
+				return i;
+			}
+		}
+		for (int i = 0; i < boxes.size() && lastSeen != null; i++) {
+			BoxEntry box = boxes.get(i);
+			if (box.pickedUp && block.equals(box.block) && box.key().equals(lastSeen)) {
 				return i;
 			}
 		}
@@ -229,6 +257,8 @@ public final class Project {
 		for (int i = 0; i < materials.size(); i++) {
 			if (i != index && materials.get(i).item.equals(item)) {
 				materials.get(i).count = (int) Math.min(Integer.MAX_VALUE, (long) materials.get(i).count + count);
+				// Still needed unless both were crossed off.
+				materials.get(i).crossedOff &= materials.get(index).crossedOff;
 				materials.remove(index);
 				return;
 			}
