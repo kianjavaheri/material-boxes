@@ -7,6 +7,11 @@
 	"authors": [
 		"kianj"
 	],
+	"contact": {
+		"homepage": "https://github.com/kianjavaheri/material-boxes",
+		"sources": "https://github.com/kianjavaheri/material-boxes",
+		"issues": "https://github.com/kianjavaheri/material-boxes/issues"
+	},
 	"license": "MIT",
 	"icon": "assets/materialsgui/icon.png",
 	"environment": "client",

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**Material Boxes** is a client-only Fabric mod for Minecraft 26.2 (Java 25, Fabric Loader 0.19.5+, Fabric API). It turns a build's material list into color-coded "Material Boxes": chests, barrels and shulker boxes whose slots show what's missing. It works on servers that don't have the mod installed. The display name is "Material Boxes", but the mod id and package are `materialsgui` (`dev.kianj.materialsgui`). Keep the id, because config and save paths depend on it. User-facing feature docs are in `docs/`, and the CurseForge page text is in `release/CURSEFORGE.md`.
+**Material Boxes** is a client-only Fabric mod for Minecraft 26.2 (Java 25, Fabric Loader 0.19.5+, Fabric API). It turns a build's material list into color-coded "Material Boxes": chests, barrels and shulker boxes whose slots show what's missing. It works on servers that don't have the mod installed. The display name is "Material Boxes", but the mod id and package are `materialsgui` (`dev.kianj.materialsgui`). Keep the id, because config and save paths depend on it. User-facing feature docs are in `docs/`, the CurseForge page text is in `release/CURSEFORGE.md`, and the changelog (used for GitHub release notes and CurseForge's changelog field) is in `release/CHANGELOG.md`.
 
 ## Commands
 
