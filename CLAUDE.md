@@ -41,9 +41,13 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 **Client only.** There's no server code. Every inventory change is made with the same click packets a player would send (`ShiftRouter`), and the client only sees a container's contents while it's open. So each Material Box stores a per-slot snapshot of its last-seen contents (`Project.BoxEntry.slotItems`/`slotCounts`, plus `nested` for items inside shulker boxes).
 
 **Data (`data/`).**
+
+`data/` and `importer/` import nothing from `net.minecraft.client`, `net.fabricmc` or `com.mojang.blaze3d`, and a unit test (`theVersionAgnosticPackagesDontTouchClientOrLoaderApis`) fails if that changes. They hold the parts that aren't tied to a Minecraft version or a loader, so they could move into a shared module if the mod is ever ported. Client code calls in and passes what it knows; these packages never reach back out. The two things they'd otherwise need are handed to them at startup: `ModConfig.useDirectory(...)` sets the config folder (`MaterialsGuiClient` gets it from `FabricLoader`), and `ProjectStore.load(key)` takes a world key that `WorldKeys.of(mc)` derives from the running client.
+
 - `Project`: the per-world state, holding the material list, the ordered Material Boxes, `listName` and `replacements`.
 - `ProjectStore`: holds the active `Project` and its computed `Layout`, and saves to `config/materialsgui/projects/<worldKey>.json`. The world key is `sp_<save folder>` (not the world's name, which two worlds can share), `mp_<server ip>`, `lan_<name>` or `realm_<name>`. All three stores write through `ModConfig.writeAtomically` (a temp file, then an atomic move).
   - `ProjectStore.changed()`: recomputes, saves, and syncs the active saved list's boxes. Call it after any change.
+  - `ProjectStore.load(key)` takes the key rather than a `Minecraft`; `WorldKeys` (root package) is what turns the client's world or server into one.
   - `recompute()`: recomputes only, for live per-frame box-content updates.
 - `SavedLists`: named lists shared by every world, in `config/materialsgui/saved-lists.json`. Each list also stores its boxes per world key. Switching lists swaps `project.boxes`; a list with no boxes in the current world keeps the current ones.
 - `ModConfig`: global settings.

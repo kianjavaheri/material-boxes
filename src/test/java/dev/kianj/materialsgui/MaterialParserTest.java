@@ -7,6 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.Gson;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.stream.Stream;
 import com.google.gson.JsonObject;
 import dev.kianj.materialsgui.importer.ClaudeImporter;
 import java.util.Map;
@@ -852,6 +857,32 @@ class MaterialParserTest {
 		assertEquals("material list", ListShare.fileName("..."));
 		assertEquals("material list CON", ListShare.fileName("CON"));
 	}
+
+	/**
+	 * data/ and importer/ hold the parts of the mod that aren't tied to a Minecraft version or a mod loader: the list,
+	 * the layout, saving, parsing and sharing. Keeping client and loader APIs out of them is what would let those
+	 * packages move into a shared module if the mod is ever ported. Client code calls in; these never call out.
+	 */
+	@Test
+	void theVersionAgnosticPackagesDontTouchClientOrLoaderApis() throws IOException {
+		Path source = Path.of("src/main/java/dev/kianj/materialsgui");
+		assertTrue(Files.isDirectory(source), "Run from the project directory; " + source.toAbsolutePath() + " isn't there");
+		List<String> offenders = new ArrayList<>();
+		for (String pkg : List.of("data", "importer")) {
+			try (Stream<Path> files = Files.walk(source.resolve(pkg))) {
+				for (Path file : files.filter(f -> f.toString().endsWith(".java")).toList()) {
+					for (String line : Files.readAllLines(file)) {
+						if (line.startsWith("import ") && FORBIDDEN.stream().anyMatch(line.substring(7)::startsWith)) {
+							offenders.add(file.getFileName() + ": " + line.strip());
+						}
+					}
+				}
+			}
+		}
+		assertEquals(List.of(), offenders, "These belong in client code, which passes what it knows into data/ and importer/");
+	}
+
+	private static final List<String> FORBIDDEN = List.of("net.minecraft.client", "net.fabricmc", "com.mojang.blaze3d");
 
 	@Test
 	void worldKeysDontCollide() {

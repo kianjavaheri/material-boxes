@@ -7,7 +7,6 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +15,11 @@ public final class ModConfig {
 	private static final Logger LOGGER = LoggerFactory.getLogger("materialsgui");
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static ModConfig instance;
+	/**
+	 * Where the mod keeps its files. The loader-specific entrypoint points this at the real config folder; the fallback
+	 * only serves tests, so nothing in this package has to know how a loader finds it.
+	 */
+	private static Path root = Path.of("config", "materialsgui");
 
 	/** Anthropic API key used for screenshot import. */
 	public String anthropicApiKey = "";
@@ -33,8 +37,15 @@ public final class ModConfig {
 	/** Color, ghost items and amounts in Material Box slots. Turned off while building, when boxes are being emptied. */
 	public boolean highlightSlots = true;
 
+	/** Points the mod's files at a folder. Call once at startup, before anything is read or written. */
+	public static void useDirectory(Path directory) {
+		root = directory;
+		// Anything already read from the old folder would be stale, and saving it would write it to the new one.
+		instance = null;
+	}
+
 	public static Path dir() {
-		return FabricLoader.getInstance().getConfigDir().resolve("materialsgui");
+		return root;
 	}
 
 	private static Path file() {

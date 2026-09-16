@@ -14,6 +14,7 @@ import dev.kianj.materialsgui.preview.ShulkerPreview;
 import dev.kianj.materialsgui.screen.MaterialsScreen;
 import dev.kianj.materialsgui.screen.SettingsScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -37,6 +38,9 @@ public class MaterialsGuiClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		// data/ and importer/ know nothing about loaders, so the config folder is handed to them here.
+		ModConfig.useDirectory(FabricLoader.getInstance().getConfigDir().resolve("materialsgui"));
+
 		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("materialsgui", "main"));
 		openKey = KeyMappingHelper.registerKeyMapping(
 			new KeyMapping("key.materialsgui.open", InputConstants.Type.KEYSYM, InputConstants.KEY_B, category));
@@ -87,7 +91,7 @@ public class MaterialsGuiClient implements ClientModInitializer {
 			BoxValidator.reset();
 			PlacedShulkers.reset();
 			MaterialsScreen.clearUnresolved();
-			ProjectStore.load(mc);
+			ProjectStore.load(WorldKeys.of(mc));
 		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
 			// Fabric can fire this on the network thread when the server drops the connection; save on the client thread.
