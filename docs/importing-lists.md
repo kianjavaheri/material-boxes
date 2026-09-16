@@ -35,12 +35,23 @@ One material per line works best, but a line can also hold several materials sep
 - Small typos are forgiven: `oak plnks` finds Oak Planks.
 - A few old names still work: `grass` is Short Grass, and `redstone wire` is Redstone Dust.
 - Words like "shulker box" and "stack" are read as amounts (`2 shulker boxes of glass`) unless they're the item's name. `4 Shulker Box` is four shulker boxes, and `8 Shulker Shell` is eight shulker shells.
+- "and" works the same way: it joins words in `1 Flint and Steel`, but is filler in `64 stone and`.
 
-Lines starting with `#` are skipped, as are headings, lines with no amount, and the `Still needed:` heading that [Copy](materials-list.md#copy) adds.
+Lines starting with `#` are skipped, as are headings, lines with no amount, and the `Still needed:` heading that [Copy What's Missing](sharing-lists.md#copy-whats-missing) adds.
 
-**Unrecognized lines** stay in the text box after importing so you can fix them, and they're listed in red (with a `?`) at the bottom of the material list. A line with an amount but no item (`64` on its own) is listed too. Fix a line and click **Add to List**.
+**Unrecognized lines** are listed in red at the bottom of the material list, marked with a barrier icon where the item would be. A line with an amount but no item (`64` on its own) is listed too.
+
+Fix one in either place:
+- **Click the red line** to open a screen with the line's text already in the search box. Pick the item you meant and click **Save**, and it's added to the list with the line's amount. **Discard** throws the line away instead. Right-clicking the line discards it in one step.
+- Or edit it in the text box, where unrecognized lines are left after an import, and click **Add to List**.
+
+The amount follows the item you pick, because it has to: `2 sb` of a 64-stacking block is 3,456, and `2 sb` of ender pearls is 864. Type an amount yourself and it's left alone.
 
 Amounts are capped at 2,147,483,647, so an absurdly large number is capped instead of causing an error.
+
+## Share codes
+
+A list someone sends you as a share code (one line starting with `MBOX1:`) goes in the same text box. Paste it and click **Replace** or **Add to List**. Unlike plain text, a code also carries the list's name, its crossed-off marks and its replacements. See [Sharing a list](sharing-lists.md) for what the two forms carry and how to produce them.
 
 ## Litematica exports and spreadsheets
 
@@ -51,7 +62,7 @@ Litematica can export a schematic's material list to a file (**Material List > W
 
 The **Total** column is used.
 
-Either click **Litematica**, which loads the newest material list export from Litematica's folders (`config/litematica` or `litematica`), or drag the `.txt`/`.csv` file onto the Minecraft window. The file is loaded into the text box so you can check it. Then click **Replace** or **Add to List**.
+Either click **Litematica**, which loads the newest material list export from Litematica's folders (`config/litematica` or `litematica`), or drag the `.txt`/`.csv` file onto the Minecraft window. A `.txt` file [exported by Material Boxes](sharing-lists.md#save-txt-file) is dropped in the same way. The file is loaded into the text box so you can check it. Then click **Replace** or **Add to List**.
 
 Rows copied from a spreadsheet, with tabs between the cells, work the same way. So do table rows in another order, like `| 1 | Stone | 64 |`: the first cell that isn't a number is the item, and the first number after it is the amount.
 

@@ -18,14 +18,23 @@ import dev.kianj.materialsgui.screen.EditMaterialScreen;
 import dev.kianj.materialsgui.screen.SettingsScreen;
 import dev.kianj.materialsgui.screen.ListsScreen;
 import dev.kianj.materialsgui.screen.MaterialsScreen;
+import dev.kianj.materialsgui.screen.ShareScreen;
+import dev.kianj.materialsgui.importer.ListShare;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.fabricmc.fabric.api.client.gametest.v1.screenshot.TestScreenshotOptions;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.fabricmc.fabric.mixin.client.gametest.input.MouseHandlerAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -61,6 +70,7 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
 public class MaterialBoxGameTest implements FabricClientGameTest {
 	private static final int ESCAPE = 256;
 	private static final int ENTER = 257;
+	private static final int BACKSPACE = 259;
 	private static final int GLFW_RELEASE = 0;
 	private static final int GLFW_PRESS = 1;
 	private static final int GLFW_MOD_SHIFT = 1;
@@ -418,6 +428,68 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 					throw new AssertionError("5 imported oak planks should have become oak logs (64 + 5)");
 				}
 			});
+			// A line naming no real item is reported, and can be fixed from the list itself.
+			ctx.getInput().typeChars("2 sb hover stone");
+			ctx.waitTicks(2);
+			ctx.clickScreenButton("Add to List");
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				if (!MaterialsScreen.unresolvedLines().equals(List.of("2 sb hover stone"))) {
+					throw new AssertionError("The unreadable line should be listed, but is " + MaterialsScreen.unresolvedLines());
+				}
+			});
+			ctx.takeScreenshot("12c-unrecognized-line");
+			int[] listRows = ctx.computeOnClient(mc -> {
+				EditBox search = null;
+				for (var child : mc.gui.screen().children()) {
+					if (child instanceof EditBox box) {
+						search = box;
+					}
+				}
+				// {left, first row's y}: the search box sits just above the rows.
+				return new int[] {search.getX(), search.getY() + 37};
+			});
+			// The unrecognized line is the row after the four materials.
+			clickAt(ctx, listRows[0] + 60, listRows[1] + 4 * 18 + 9, 0);
+			ctx.waitForScreen(EditMaterialScreen.class);
+			ctx.waitTicks(2);
+			ctx.takeScreenshot("12d-fix-unrecognized-line");
+			ctx.runOnClient(mc -> {
+				// The line's text is waiting in the search box (the wide one), so it doesn't have to be retyped.
+				for (var child : mc.gui.screen().children()) {
+					if (child instanceof EditBox box && box.getWidth() > 100 && !box.getValue().equals("hover stone")) {
+						throw new AssertionError("The fix screen should start from the line's text, but has \"" + box.getValue() + "\"");
+					}
+				}
+			});
+			for (int i = 0; i < "hover stone".length(); i++) {
+				ctx.getInput().pressKey(BACKSPACE);
+			}
+			ctx.getInput().typeChars("stone bricks");
+			ctx.waitTicks(2);
+			ctx.getInput().pressKey(ENTER);
+			ctx.waitTicks(2);
+			ctx.clickScreenButton("Save");
+			ctx.waitForScreen(MaterialsScreen.class);
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				if (!MaterialsScreen.unresolvedLines().isEmpty()) {
+					throw new AssertionError("Fixing the line should take it off the list");
+				}
+				Project.MaterialEntry bricks = ProjectStore.project().materials.stream()
+					.filter(m -> m.item.equals("minecraft:stone_bricks")).findFirst().orElse(null);
+				// "2 sb" is two shulker boxes of a 64-stacking item.
+				if (bricks == null || bricks.count != 2 * 27 * 64) {
+					throw new AssertionError("The fixed line should add " + (2 * 27 * 64) + " stone bricks, but gave " + bricks);
+				}
+			});
+			ctx.takeScreenshot("12e-line-fixed");
+			ctx.runOnClient(mc -> {
+				Project project = ProjectStore.project();
+				project.materials.removeIf(m -> m.item.equals("minecraft:stone_bricks"));
+				ProjectStore.changed();
+			});
+
 			// The panel collapses, and the choice is remembered.
 			ctx.clickScreenButton("Hide Import");
 			ctx.waitTicks(2);
@@ -552,15 +624,96 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 			ctx.getInput().pressKey(InputConstants.KEY_H);
 			ctx.waitTicks(2);
 
-			// Copy puts what's still missing on the clipboard.
+			// Sharing the list: what's still missing, a .txt file, and a share code.
 			ctx.setScreen(MaterialsScreen::new);
 			ctx.waitTicks(2);
-			ctx.clickScreenButton("Copy");
+			ctx.runOnClient(mc -> {
+				// Earlier exports persist between runs, so the check below can't be fooled by one.
+				deleteExports();
+				// Open Folder is clickable before anything has been exported, and a folder that isn't there won't open.
+				try {
+					if (!Files.isDirectory(ListShare.createExportsDir())) {
+						throw new AssertionError("The exports folder should be made on demand, not only when a list is saved");
+					}
+				} catch (IOException e) {
+					throw new UncheckedIOException(e);
+				}
+				Project project = ProjectStore.project();
+				project.listName = "Watchtower";
+				project.replacements.put("minecraft:oak_planks", "minecraft:oak_log");
+				// Glass is crossed off, which a share code carries and plain text can't.
+				project.materials.get(1).crossedOff = true;
+				ProjectStore.changed();
+			});
+			ctx.clickScreenButton("Share");
+			ctx.waitForScreen(ShareScreen.class);
+			ctx.waitTicks(2);
+			ctx.takeScreenshot("17-share-list");
+			ctx.clickScreenButton("Copy What's Missing");
 			ctx.runOnClient(mc -> {
 				String clipboard = mc.keyboardHandler.getClipboard();
 				if (!clipboard.contains("8 Stone") || clipboard.contains("Glass")) {
 					throw new AssertionError("The clipboard should list only 8 Stone, but has: " + clipboard);
 				}
+			});
+			ctx.clickScreenButton("Save .txt File");
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				Path file = ListShare.exportsDir().resolve("Watchtower.txt");
+				String written = read(file);
+				if (!written.contains(ListShare.PREFIX) || !written.contains("200 stone") || !written.contains("20 glass (done)")) {
+					throw new AssertionError("The exported file should hold the list and its share code, but has: " + written);
+				}
+			});
+
+			// The code goes back in through the same import box, and brings the name, the swap and the crossed-off mark.
+			ctx.clickScreenButton("Copy Share Code");
+			String code = ctx.computeOnClient(mc -> mc.keyboardHandler.getClipboard());
+			if (!code.startsWith(ListShare.PREFIX) || code.contains("\n")) {
+				throw new AssertionError("A share code should be one line starting with " + ListShare.PREFIX + ", but is: " + code);
+			}
+			ctx.clickScreenButton("Done");
+			ctx.waitForScreen(MaterialsScreen.class);
+			ctx.runOnClient(mc -> {
+				Project project = ProjectStore.project();
+				project.materials.clear();
+				project.replacements.clear();
+				project.listName = null;
+				ProjectStore.changed();
+			});
+			ctx.clickScreenButton("Show Import");
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				for (var child : mc.gui.screen().children()) {
+					if (child instanceof MultiLineEditBox box) {
+						box.setValue(code, true);
+					}
+				}
+			});
+			ctx.clickScreenButton("Replace");
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				Project project = ProjectStore.project();
+				List<Project.MaterialEntry> materials = project.materials;
+				if (materials.size() != 2 || !materials.get(0).item.equals("minecraft:stone") || materials.get(0).count != 200
+					|| !materials.get(1).item.equals("minecraft:glass") || materials.get(1).count != 20) {
+					throw new AssertionError("The share code should bring back 200 stone and 20 glass, but gave " + materials.size() + " materials");
+				}
+				if (!materials.get(1).crossedOff || !"Watchtower".equals(project.listName)
+					|| !"minecraft:oak_log".equals(project.replacementFor("minecraft:oak_planks"))) {
+					throw new AssertionError("The share code should bring back the crossed-off glass, the name and the swap");
+				}
+			});
+			ctx.takeScreenshot("17a-share-code-imported");
+			// Back to how the rest of the run expects the list: unnamed, with nothing crossed off, and the panel hidden.
+			ctx.clickScreenButton("Hide Import");
+			ctx.waitTicks(2);
+			ctx.runOnClient(mc -> {
+				Project project = ProjectStore.project();
+				project.materials.get(1).crossedOff = false;
+				project.replacements.clear();
+				project.listName = null;
+				ProjectStore.changed();
 			});
 			// Right-clicking a material only asks to remove it. Esc keeps it; the X confirms.
 			int[] list = ctx.computeOnClient(mc -> {
@@ -733,6 +886,9 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 		ctx.setScreen(() -> new BoxesScreen(null));
 		ctx.waitTicks(2);
 		ctx.takeScreenshot(TestScreenshotOptions.of(name + "-boxes").withSize(width, height));
+		ctx.setScreen(() -> ShareScreen.of(new MaterialsScreen(), ProjectStore.project()));
+		ctx.waitTicks(2);
+		ctx.takeScreenshot(TestScreenshotOptions.of(name + "-share").withSize(width, height));
 		ctx.setScreen(() -> null);
 		ctx.waitTicks(2);
 	}
@@ -740,6 +896,29 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 	private static boolean isOurButton(String label) {
 		return label.startsWith("+ Material Box") || label.startsWith("Remove Box") || label.equals("Materials List...") || label.equals("Deposit All")
 			|| label.endsWith(" Highlights");
+	}
+
+	/** The run's config folder persists between runs, so an export from a previous run is cleared first. */
+	private static void deleteExports() {
+		Path dir = ListShare.exportsDir();
+		if (!Files.isDirectory(dir)) {
+			return;
+		}
+		try (Stream<Path> files = Files.walk(dir)) {
+			for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+				Files.delete(file);
+			}
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
+	private static String read(Path file) {
+		try {
+			return Files.readString(file);
+		} catch (IOException e) {
+			throw new AssertionError("Expected an exported list at " + file, e);
+		}
 	}
 
 	/** Clicks at a GUI position with a real mouse button (0 left, 1 right). */

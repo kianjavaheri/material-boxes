@@ -11,6 +11,7 @@ Paste your material list (or load a Litematica export), mark chests, barrels or 
 - **Missing-materials HUD** shows what's left and how much you're carrying. Press **H** to toggle it.
 - **Counts stay current.** Boxes that may have changed are re-read in the background when you're nearby.
 - **Saved lists,** each with its own Material Boxes, shared across worlds.
+- **Share a list** as a one-line code, as text, or as a .txt file. Whoever gets it pastes or drops it straight back in.
 - **Ready to build:** hide the highlights with one click, or cross off materials you're done with.
 
 **Getting started:** press **B**, paste your list, then open a chest and click **+ Material Box**.

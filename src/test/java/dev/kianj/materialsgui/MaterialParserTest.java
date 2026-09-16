@@ -16,6 +16,7 @@ import dev.kianj.materialsgui.data.Layout;
 import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.data.SavedLists;
+import dev.kianj.materialsgui.importer.ListShare;
 import dev.kianj.materialsgui.importer.MaterialParser;
 import java.util.List;
 import net.minecraft.SharedConstants;
@@ -644,6 +645,34 @@ class MaterialParserTest {
 	}
 
 	@Test
+	void namesContainingAndResolve() {
+		assertEquals(Map.of(Items.FLINT_AND_STEEL, 1), MaterialParser.parse("1 Flint and steel").materials());
+		assertEquals(Map.of(Items.FLINT_AND_STEEL, 3), MaterialParser.parse("3x flint_and_steel").materials());
+		assertEquals(Map.of(Items.FLINT_AND_STEEL, 2), MaterialParser.parse("Flint and Steel: 2").materials());
+		// "and" is still filler when it isn't part of the name.
+		assertEquals(Map.of(Items.STONE, 64), MaterialParser.parse("64 stone and").materials());
+	}
+
+	@Test
+	void unrecognizedLinesSplitIntoAnAmountAndAName() {
+		// "2 sb" is 2 shulker boxes, which is a different total for a stone brick than for a bucket.
+		MaterialParser.Line boxes = MaterialParser.split("2 sb hover stone");
+		assertEquals("hover stone", boxes.name());
+		assertEquals(2 * 27 * 64, boxes.countFor(Items.STONE_BRICKS));
+		assertEquals(2 * 27 * 16, boxes.countFor(Items.ENDER_PEARL));
+
+		MaterialParser.Line plain = MaterialParser.split("12 grass blok");
+		assertEquals("grass blok", plain.name());
+		assertEquals(12, plain.countFor(Items.GRASS_BLOCK));
+
+		// An amount with no name at all still gives a usable amount and an empty search.
+		assertEquals("", MaterialParser.split("64").name());
+		assertEquals(64, MaterialParser.split("64").countFor(Items.STONE));
+		// Never zero, so the fix screen always starts on a valid amount.
+		assertEquals(1, MaterialParser.split("nonsense").countFor(Items.STONE));
+	}
+
+	@Test
 	void namesWithOfOrUnitWordsResolve() {
 		assertEquals(Map.of(Items.IRON_BLOCK, 164), MaterialParser.parse("164 Block of Iron").materials());
 		assertEquals(Map.of(Items.ENDER_EYE, 12), MaterialParser.parse("12 Eye of Ender").materials());
@@ -728,6 +757,100 @@ class MaterialParserTest {
 		box.reshape(54, 0, 27, 27);
 		assertTrue(box.isEmptyAt(3));
 		assertEquals(7, box.countAt(30));
+	}
+
+	private static Project shared() {
+		Project project = new Project();
+		project.listName = "Castle walls";
+		project.materials.add(new Project.MaterialEntry("minecraft:stone", 1000));
+		Project.MaterialEntry glass = new Project.MaterialEntry("minecraft:glass", 128);
+		glass.crossedOff = true;
+		project.materials.add(glass);
+		project.materials.add(new Project.MaterialEntry("somemod:brass_block", 12));
+		project.replacements.put("minecraft:oak_planks", "minecraft:oak_log");
+		return project;
+	}
+
+	@Test
+	void aShareCodeRoundTripsEverythingTextCant() {
+		Project project = shared();
+		ListShare.Decoded decoded = ListShare.decode(ListShare.encode(project));
+		assertEquals("Castle walls", decoded.name());
+		assertEquals(3, decoded.materials().size());
+		assertEquals("minecraft:stone", decoded.materials().get(0).item);
+		assertEquals(1000, decoded.materials().get(0).count);
+		assertFalse(decoded.materials().get(0).crossedOff);
+		assertTrue(decoded.materials().get(1).crossedOff);
+		// A modded item keeps its namespace; a vanilla one gets it back.
+		assertEquals("somemod:brass_block", decoded.materials().get(2).item);
+		assertEquals(Map.of("minecraft:oak_planks", "minecraft:oak_log"), decoded.replacements());
+	}
+
+	@Test
+	void aShareCodeIsFoundInSurroundingText() {
+		String code = ListShare.encode(shared());
+		assertEquals(code, ListShare.find("here's the list for tonight: " + code + " ping me if it breaks"));
+		assertEquals(code, ListShare.find("> " + code + "\n"));
+		assertNull(ListShare.find("64 stone\n12 glass"));
+	}
+
+	@Test
+	void aBigListStaysOneLineAndCompresses() {
+		Project project = new Project();
+		for (int i = 0; i < 200; i++) {
+			project.materials.add(new Project.MaterialEntry("minecraft:stone_" + i, 1234));
+		}
+		String code = ListShare.encode(project);
+		assertFalse(code.contains("\n"));
+		// Comfortably inside a chat message's length, where the same list as text would not be.
+		assertTrue(code.length() < 2000, "A 200-material code was " + code.length() + " characters");
+		assertEquals(200, ListShare.decode(code).materials().size());
+	}
+
+	@Test
+	void damagedCodesAreRejectedRatherThanCrashing() {
+		String code = ListShare.encode(shared());
+		assertNull(ListShare.decode(code.substring(0, code.length() - 10)));
+		assertNull(ListShare.decode("MBOX1:not-real-base64-data"));
+		assertNull(ListShare.decode("64 stone"));
+		// An empty list isn't a list.
+		assertNull(ListShare.decode(ListShare.encode(new Project())));
+	}
+
+	@Test
+	void aHandMadeCodeCantBeInflatedIntoACrash() {
+		Project bomb = new Project();
+		for (int i = 0; i < 400_000; i++) {
+			bomb.materials.add(new Project.MaterialEntry("minecraft:stone", 1));
+		}
+		// Every entry is the same item, so it compresses to almost nothing and would inflate to megabytes.
+		assertNull(ListShare.decode(ListShare.encode(bomb)));
+	}
+
+	@Test
+	void anExportedFileReadsAsAListAndCarriesItsCode() {
+		Project project = shared();
+		String text = ListShare.text(project.listName, project.materials, project.replacements);
+		// A person reading the file, or pasting only the lines under the header, gets the materials.
+		MaterialParser.Result parsed = MaterialParser.parse(text);
+		assertEquals(1000, count(parsed, Items.STONE));
+		assertEquals(128, count(parsed, Items.GLASS));
+		assertEquals(List.of("12 somemod:brass_block"), parsed.unresolved());
+		// Dropping the whole file in finds the code, so the name and the crossed-off glass survive too.
+		ListShare.Decoded decoded = ListShare.decode(ListShare.find(text));
+		assertEquals("Castle walls", decoded.name());
+		assertTrue(decoded.materials().get(1).crossedOff);
+	}
+
+	@Test
+	void exportFileNamesStaySafe() {
+		assertEquals("Castle walls", ListShare.fileName("Castle walls"));
+		assertEquals("material list", ListShare.fileName(null));
+		assertEquals("my list 2024", ListShare.fileName("my/list: 2024"));
+		// A name can't climb out of the exports folder.
+		assertEquals("up", ListShare.fileName("../up"));
+		assertEquals("material list", ListShare.fileName("..."));
+		assertEquals("material list CON", ListShare.fileName("CON"));
 	}
 
 	@Test

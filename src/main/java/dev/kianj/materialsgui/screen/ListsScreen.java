@@ -12,6 +12,7 @@ import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -73,8 +74,8 @@ public class ListsScreen extends Screen {
 		if (nameText == null) {
 			nameText = project.listName == null ? "" : project.listName;
 		}
-		int bw = 64;
-		EditBox name = new EditBox(this.font, left, 40, columnWidth - 2 * (bw + 4), 20, Component.literal("List name"));
+		int bw = 58;
+		EditBox name = new EditBox(this.font, left, 40, columnWidth - 3 * (bw + 4), 20, Component.literal("List name"));
 		name.setMaxLength(64);
 		name.setHint(Component.literal("Name this list, e.g. Castle walls"));
 		name.setValue(nameText);
@@ -83,11 +84,22 @@ public class ListsScreen extends Screen {
 			confirm = null;
 		});
 		addRenderableWidget(name);
-		int bx = right - 2 * bw - 4;
+		int bx = right - 3 * bw - 8;
 		addRenderableWidget(Button.builder(Component.literal("save".equals(confirm) ? "Overwrite?" : "Save"), b -> save()).bounds(bx, 40, bw, 20).build());
 		Button rename = Button.builder(Component.literal("Rename"), b -> rename()).bounds(bx + bw + 4, 40, bw, 20).build();
 		rename.active = selected != null;
 		addRenderableWidget(rename);
+		// The Materials List's own Share button covers the current list, so this one shares the selected saved list.
+		Button share = Button.builder(Component.literal("Share"), b -> {
+			if (selected != null) {
+				this.minecraft.gui.setScreen(ShareScreen.of(this, selected));
+			}
+		})
+			.bounds(bx + 2 * (bw + 4), 40, bw, 20)
+			.tooltip(Tooltip.create(Component.literal("Copy the selected list as text or a share code, or save it as a .txt file")))
+			.build();
+		share.active = selected != null;
+		addRenderableWidget(share);
 
 		List<SavedLists.SavedList> lists = lists();
 		scroll = Math.max(0, Math.min(scroll, lists.size() - visibleRows()));

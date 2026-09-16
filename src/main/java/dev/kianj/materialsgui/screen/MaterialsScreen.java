@@ -7,6 +7,7 @@ import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.data.SavedLists;
 import dev.kianj.materialsgui.importer.ClaudeImporter;
+import dev.kianj.materialsgui.importer.ListShare;
 import dev.kianj.materialsgui.importer.MaterialParser;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -19,6 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletionException;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
@@ -87,7 +89,7 @@ public class MaterialsScreen extends Screen {
 	private @Nullable Boolean showPanel;
 	private @Nullable MultiLineEditBox input;
 	private @Nullable Button clearButton;
-	private @Nullable Button copyButton;
+	private @Nullable Button shareButton;
 	private @Nullable Button keyButton;
 	private @Nullable Button settingsButton;
 	/** A right-clicked material waiting for its X to be clicked before it's removed. */
@@ -131,7 +133,7 @@ public class MaterialsScreen extends Screen {
 			.bounds(toggleX, HEADER_Y, TOGGLE_WIDTH, 20).build());
 
 		clearButton = null;
-		copyButton = null;
+		shareButton = null;
 		settingsButton = null;
 		if (listVisible) {
 			clearButton = Button.builder(Component.literal(confirmClear ? "Sure?" : "Clear"), b -> clear())
@@ -139,11 +141,11 @@ public class MaterialsScreen extends Screen {
 				.tooltip(Tooltip.create(Component.literal("Empty the current list. Saved lists aren't affected.")))
 				.build();
 			addRenderableWidget(clearButton);
-			copyButton = Button.builder(Component.literal("Copy"), b -> copyMissing())
+			shareButton = Button.builder(Component.literal("Share"), b -> this.minecraft.gui.setScreen(ShareScreen.of(this, ProjectStore.project())))
 				.bounds(listRight - 104, HEADER_Y, 50, 20)
-				.tooltip(Tooltip.create(Component.literal("Copy what's still missing to the clipboard")))
+				.tooltip(Tooltip.create(Component.literal("Copy this list as text or a share code, or save it as a .txt file to send to someone")))
 				.build();
-			addRenderableWidget(copyButton);
+			addRenderableWidget(shareButton);
 
 			EditBox searchBox = new EditBox(this.font, listLeft, HEADER_Y + 25, listRight - listLeft - SORT_WIDTH - 4, 18, Component.literal("Search"));
 			searchBox.setMaxLength(64);
@@ -184,7 +186,7 @@ public class MaterialsScreen extends Screen {
 			input = MultiLineEditBox.builder()
 				.setX(PAD)
 				.setY(top)
-				.setPlaceholder(Component.literal("64 stone\n3 stacks oak planks\nGlass: 128\n2 sb stone bricks\n\n...or drop a Litematica .txt/.csv or a screenshot here"))
+				.setPlaceholder(Component.literal("64 stone\n3 stacks oak planks\nGlass: 128\n2 sb stone bricks\n\n...or paste an MBOX1 share code, or drop a .txt/.csv or a screenshot here"))
 				.build(this.font, panelWidth, bottom - top, Component.literal("Material list"));
 			input.setCharacterLimit(200_000);
 			input.setValue(draft, true);
@@ -219,6 +221,27 @@ public class MaterialsScreen extends Screen {
 
 	public static void clearUnresolved() {
 		unresolved = List.of();
+	}
+
+	/** The import lines that didn't match an item, in the order they were read. */
+	public static List<String> unresolvedLines() {
+		return unresolved;
+	}
+
+	/**
+	 * Takes one line off the unrecognized list, once it's been fixed or thrown away. It also leaves the editor, which
+	 * holds the lines still to fix, so importing again can't bring it back.
+	 */
+	void resolveLine(String line) {
+		List<String> left = new ArrayList<>(unresolved);
+		left.remove(line);
+		unresolved = List.copyOf(left);
+		setDraft(draft.lines().filter(l -> !l.strip().equals(line.strip())).collect(Collectors.joining("\n")));
+	}
+
+	private void dropUnresolved(String line) {
+		resolveLine(line);
+		setStatus("Discarded \"" + line + "\".", GRAY);
 	}
 
 	void setStatus(String text, int color) {
@@ -257,20 +280,13 @@ public class MaterialsScreen extends Screen {
 		rebuildWidgets();
 	}
 
-	/** Copies what's still missing, one "count name" line per material, so it can be pasted back in as a list. */
-	private void copyMissing() {
-		String text = ProjectStore.layout().missingText(ProjectStore.project());
-		if (text.isEmpty()) {
-			setStatus("Nothing is missing, so there's nothing to copy.", GREEN);
-			return;
-		}
-		this.minecraft.keyboardHandler.setClipboard(text);
-		long lines = text.lines().count() - 1;
-		setStatus("Copied " + lines + " missing material" + (lines == 1 ? "" : "s") + " to the clipboard.", GREEN);
-	}
-
 	private void applyImport(boolean replace) {
 		confirmClear = false;
+		String code = ListShare.find(draft);
+		if (code != null) {
+			applyCode(code, replace);
+			return;
+		}
 		MaterialParser.Result result = MaterialParser.parse(draft);
 		if (result.materials().isEmpty() && result.unresolved().isEmpty()) {
 			setStatus("Nothing to import. Lines need an amount and an item, like \"64 stone\".", RED);
@@ -322,6 +338,49 @@ public class MaterialsScreen extends Screen {
 		} else {
 			setStatus(imported + " Fix the " + unresolved.size() + " unrecognized line(s) and press Add to List.", YELLOW);
 		}
+	}
+
+	/**
+	 * Imports a share code. Unlike text, it carries the list's name, which materials are crossed off and its item
+	 * swaps, so Replace takes all three; Add only takes the materials, so someone else's code can't rename your list.
+	 */
+	private void applyCode(String code, boolean replace) {
+		ListShare.Decoded decoded = ListShare.decode(code);
+		if (decoded == null) {
+			setStatus("That share code is damaged or from a newer version of the mod. Ask for it again, or paste the list as text.", RED);
+			return;
+		}
+		Project project = ProjectStore.project();
+		if (replace) {
+			project.materials.clear();
+			project.replacements.clear();
+			project.replacements.putAll(decoded.replacements());
+			project.listName = decoded.name();
+		}
+		for (Project.MaterialEntry entry : decoded.materials()) {
+			// Replace takes the code's list as it stands; Add puts it through this list's own swaps, like a text import.
+			String id = replace ? entry.item : project.replacementFor(entry.item);
+			Project.MaterialEntry existing = project.materials.stream().filter(m -> m.item.equals(id)).findFirst().orElse(null);
+			if (existing == null) {
+				Project.MaterialEntry added = new Project.MaterialEntry(id, entry.count);
+				added.crossedOff = replace && entry.crossedOff;
+				project.materials.add(added);
+			} else {
+				existing.count = MaterialParser.addClamped(existing.count, entry.count);
+				// More of it is needed, so it isn't done with any more.
+				existing.crossedOff = false;
+			}
+		}
+		ProjectStore.changed();
+		unresolved = List.of();
+		setDraft("");
+		String named = decoded.name() == null || !replace ? "" : " \"" + decoded.name() + "\"";
+		setStatus((replace ? "Loaded" : "Added") + " " + decoded.materials().size() + " materials from the share code" + named + ".", GREEN);
+		if (!listVisible) {
+			// On a narrow window the panel covers the list, so get out of the way to show the result.
+			showPanel = false;
+		}
+		rebuildWidgets();
 	}
 
 	private void loadLitematica() {
@@ -455,12 +514,23 @@ public class MaterialsScreen extends Screen {
 		}
 		// Click a row to replace or edit that material; right-click to ask to remove it.
 		int position = rowAt(event.x(), event.y());
-		if (position < 0 || position >= rows.size() || rows.get(position).index < 0) {
+		if (position < 0 || position >= rows.size()) {
 			return false;
 		}
 		if (pending != null) {
 			// This click only cancelled the removal.
 			return true;
+		}
+		if (rows.get(position).index < 0) {
+			if (event.button() == 0) {
+				this.minecraft.gui.setScreen(new EditMaterialScreen(this, rows.get(position).name.getString()));
+				return true;
+			}
+			if (event.button() == 1) {
+				dropUnresolved(rows.get(position).name.getString());
+				return true;
+			}
+			return false;
 		}
 		int index = rows.get(position).index;
 		if (event.button() == 0 && onCheckbox(event.x())) {
@@ -546,8 +616,8 @@ public class MaterialsScreen extends Screen {
 		if (clearButton != null) {
 			clearButton.active = !project.materials.isEmpty() || !unresolved.isEmpty();
 		}
-		if (copyButton != null) {
-			copyButton.active = !project.materials.isEmpty();
+		if (shareButton != null) {
+			shareButton.active = !project.materials.isEmpty();
 		}
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 		if (keyButton != null) {
@@ -598,7 +668,9 @@ public class MaterialsScreen extends Screen {
 		int maxScroll = Math.max(0, rows.size() * ROW - (listBottom - listTop));
 		scroll = Math.min(scroll, maxScroll);
 		int hovered = rowAt(mouseX, mouseY);
-		boolean hoveringMaterial = hovered >= 0 && hovered < rows.size() && rows.get(hovered).index >= 0;
+		boolean hoveringRow = hovered >= 0 && hovered < rows.size();
+		boolean hoveringMaterial = hoveringRow && rows.get(hovered).index >= 0;
+		boolean hoveringUnresolved = hoveringRow && !hoveringMaterial;
 		boolean hoveringCheckbox = hoveringMaterial && pendingRemoval == null && onCheckbox(mouseX);
 		graphics.enableScissor(listLeft - 2, listTop, listRight, listBottom);
 		int y = listTop - scroll;
@@ -610,7 +682,7 @@ public class MaterialsScreen extends Screen {
 				if (removing) {
 					graphics.fill(listLeft - 2, y - 1, listRight, y + ROW - 1, 0x50FF3030);
 					hoveringRemoval |= i == hovered;
-				} else if (i == hovered && hoveringMaterial) {
+				} else if (i == hovered && hoveringRow) {
 					graphics.fill(listLeft - 2, y - 1, listRight, y + ROW - 1, 0x30FFFFFF);
 				}
 				if (row.index >= 0) {
@@ -652,6 +724,8 @@ public class MaterialsScreen extends Screen {
 				mouseX, mouseY);
 		} else if (hoveringMaterial) {
 			graphics.setTooltipForNextFrame(this.font, Component.literal("Click to replace it or change the amount. Right-click to remove."), mouseX, mouseY);
+		} else if (hoveringUnresolved) {
+			graphics.setTooltipForNextFrame(this.font, Component.literal("This line wasn't recognized. Click to pick the item you meant. Right-click to discard it."), mouseX, mouseY);
 		}
 	}
 
@@ -694,7 +768,7 @@ public class MaterialsScreen extends Screen {
 		}
 		if (query.isEmpty()) {
 			for (String line : unresolved) {
-				rows.add(new Row(-1, null, Component.literal("? " + line), RED, null, RED, 0, false));
+				rows.add(new Row(-1, Items.BARRIER, Component.literal(line), RED, null, RED, 0, false));
 			}
 		}
 		return rows;

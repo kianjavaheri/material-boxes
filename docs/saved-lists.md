@@ -18,6 +18,8 @@ The list manager is a centered column. Each saved list takes two lines:
 
 The most recently saved list is at the top. Names that are too long to fit are shortened with "...".
 
+Click a list to select it. **Rename** and **Share** work on the selected list: **Share** opens the [sharing screen](sharing-lists.md) for it, so you can send a saved list to someone without loading it first.
+
 | Action | How |
 |---|---|
 | **Load** | Makes that list the current one. If the current list has unsaved changes, the button asks **Sure?** first. |

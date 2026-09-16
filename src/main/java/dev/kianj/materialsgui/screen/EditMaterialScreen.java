@@ -5,6 +5,7 @@ import dev.kianj.materialsgui.data.Layout;
 import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.importer.ItemResolver;
+import dev.kianj.materialsgui.importer.MaterialParser;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -22,7 +23,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.jspecify.annotations.Nullable;
 
-/** Replace a material on the list with a different item (keeping the amount), or change its amount. */
+/**
+ * Replace a material on the list with a different item (keeping the amount), or change its amount. The same screen
+ * fixes an unrecognized import line: there's no material yet, so picking an item adds one and the line goes away.
+ */
 public class EditMaterialScreen extends Screen {
 	private static final int WIDTH = 300;
 	private static final int ROW = 18;
@@ -33,11 +37,18 @@ public class EditMaterialScreen extends Screen {
 	private static final int GREEN = 0xFF55FF55;
 
 	private final MaterialsScreen parent;
+	/** The material being edited, or -1 when an unrecognized import line is being fixed. */
 	private final int index;
+	/** The unrecognized line this screen is fixing, or null when an existing material is being edited. */
+	private final @Nullable String line;
+	/** That line's amount, which can't become a number until an item is picked ("2 sb" depends on how it stacks). */
+	private final MaterialParser.@Nullable Line parsed;
 	private EditBox search;
 	private EditBox amount;
 	private String query = "";
 	private @Nullable String amountText;
+	/** Once the amount has been typed in by hand, picking an item stops overwriting it. */
+	private boolean amountEdited;
 	private List<Item> results = List.of();
 	private @Nullable Item selected;
 	private @Nullable String error;
@@ -47,10 +58,30 @@ public class EditMaterialScreen extends Screen {
 		super(Component.literal("Edit Material"));
 		this.parent = parent;
 		this.index = index;
+		this.line = null;
+		this.parsed = null;
+	}
+
+	/** Fixes an unrecognized import line: the text goes in the search box, and its amount follows the item picked. */
+	public EditMaterialScreen(MaterialsScreen parent, String line) {
+		super(Component.literal("Unrecognized Line"));
+		this.parent = parent;
+		this.index = -1;
+		this.line = line;
+		this.parsed = MaterialParser.split(line);
+		this.query = parsed.name();
 	}
 
 	private Project.MaterialEntry entry() {
 		return ProjectStore.project().materials.get(index);
+	}
+
+	/** The amount to show for the item currently picked, before the player types over it. */
+	private String suggestedAmount() {
+		if (parsed == null) {
+			return String.valueOf(entry().count);
+		}
+		return String.valueOf(parsed.countFor(selected == null ? Items.STONE : selected));
 	}
 
 	private int maxResults() {
@@ -66,7 +97,7 @@ public class EditMaterialScreen extends Screen {
 		left = (this.width - WIDTH) / 2;
 		search = new EditBox(this.font, left, 38, WIDTH, 20, Component.literal("Replace with"));
 		search.setMaxLength(100);
-		search.setHint(Component.literal("Replace with... type an item name"));
+		search.setHint(Component.literal(line == null ? "Replace with... type an item name" : "What did this line mean?"));
 		search.setValue(query);
 		search.setResponder(this::updateResults);
 		addRenderableWidget(search);
@@ -74,14 +105,18 @@ public class EditMaterialScreen extends Screen {
 		int y = amountY();
 		amount = new EditBox(this.font, left + 50, y, 70, 20, Component.literal("Amount"));
 		amount.setMaxLength(10);
-		amount.setValue(amountText != null ? amountText : String.valueOf(entry().count));
-		amount.setResponder(v -> amountText = v);
+		amount.setValue(amountText != null ? amountText : suggestedAmount());
+		amount.setResponder(v -> {
+			amountEdited |= !v.equals(suggestedAmount());
+			amountText = v;
+		});
 		addRenderableWidget(amount);
 
 		int bx = left + 128;
 		int bw = (WIDTH - 128 - 8) / 3;
 		addRenderableWidget(Button.builder(Component.literal("Save"), b -> save()).bounds(bx, y, bw, 20).build());
-		addRenderableWidget(Button.builder(Component.literal("Remove"), b -> remove()).bounds(bx + bw + 4, y, bw, 20).build());
+		addRenderableWidget(Button.builder(Component.literal(line == null ? "Remove" : "Discard"), b -> remove())
+			.bounds(bx + bw + 4, y, bw, 20).build());
 		addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> onClose()).bounds(bx + 2 * (bw + 4), y, bw, 20).build());
 		setInitialFocus(search);
 		updateResults(query);
@@ -142,6 +177,16 @@ public class EditMaterialScreen extends Screen {
 		return item == null ? id : item.getName(new ItemStack(item)).getString();
 	}
 
+	/** Picks an item. The amount follows it until the player types one in, since "2 sb" depends on how it stacks. */
+	private void select(Item item) {
+		selected = item;
+		error = null;
+		if (parsed != null && !amountEdited) {
+			amountText = suggestedAmount();
+			amount.setValue(amountText);
+		}
+	}
+
 	private void save() {
 		int count;
 		try {
@@ -152,6 +197,10 @@ public class EditMaterialScreen extends Screen {
 		}
 		if (count <= 0) {
 			error = "The amount must be at least 1.";
+			return;
+		}
+		if (line != null) {
+			addFixed(count);
 			return;
 		}
 		Project.MaterialEntry entry = entry();
@@ -166,7 +215,35 @@ public class EditMaterialScreen extends Screen {
 		this.minecraft.gui.setScreen(parent);
 	}
 
+	/** Turns the unrecognized line into a material, the way an import would have, and takes the line off the list. */
+	private void addFixed(int count) {
+		if (selected == null) {
+			error = "Pick the item this line meant.";
+			return;
+		}
+		Project project = ProjectStore.project();
+		// A swap made earlier in this list applies here too, just as it would on import.
+		String id = project.replacementFor(BuiltInRegistries.ITEM.getKey(selected).toString());
+		Project.MaterialEntry existing = project.materials.stream().filter(m -> m.item.equals(id)).findFirst().orElse(null);
+		if (existing == null) {
+			project.materials.add(new Project.MaterialEntry(id, count));
+		} else {
+			existing.count = MaterialParser.addClamped(existing.count, count);
+			existing.crossedOff = false;
+		}
+		ProjectStore.changed();
+		parent.resolveLine(line);
+		parent.setStatus("Added " + count + " " + displayName(id) + " from \"" + line + "\".", GREEN);
+		this.minecraft.gui.setScreen(parent);
+	}
+
 	private void remove() {
+		if (line != null) {
+			parent.resolveLine(line);
+			parent.setStatus("Discarded \"" + line + "\".", GRAY);
+			this.minecraft.gui.setScreen(parent);
+			return;
+		}
 		String name = displayName(entry().item);
 		ProjectStore.project().materials.remove(index);
 		ProjectStore.changed();
@@ -194,8 +271,7 @@ public class EditMaterialScreen extends Screen {
 		}
 		int row = resultAt(event.x(), event.y());
 		if (row >= 0) {
-			selected = results.get(row);
-			error = null;
+			select(results.get(row));
 			return true;
 		}
 		return false;
@@ -206,8 +282,7 @@ public class EditMaterialScreen extends Screen {
 		// Enter in the search box picks the top match.
 		boolean enter = event.key() == InputConstants.KEY_RETURN || event.key() == InputConstants.KEY_NUMPADENTER;
 		if (enter && search.isFocused() && !results.isEmpty()) {
-			selected = results.getFirst();
-			error = null;
+			select(results.getFirst());
 			return true;
 		}
 		return super.keyPressed(event);
@@ -218,18 +293,17 @@ public class EditMaterialScreen extends Screen {
 		super.extractRenderState(graphics, mouseX, mouseY, a);
 		graphics.centeredText(this.font, this.title, this.width / 2, 8, WHITE);
 
-		// Current material, and what it becomes.
-		Project.MaterialEntry entry = entry();
-		Item current = Layout.resolve(entry.item);
+		// Current material (or the line that wasn't recognized), and what it becomes.
+		Item current = line == null ? Layout.resolve(entry().item) : Items.BARRIER;
 		int x = left;
 		int y = 18;
 		if (current != null) {
 			graphics.item(new ItemStack(current), x, y);
 			x += 20;
 		}
-		String currentText = displayName(entry.item) + " x" + entry.count;
-		graphics.text(this.font, currentText, x, y + 4, WHITE, true);
-		if (selected != null && selected != current) {
+		String currentText = line == null ? displayName(entry().item) + " x" + entry().count : line;
+		graphics.text(this.font, currentText, x, y + 4, line == null ? WHITE : RED, true);
+		if (selected != null && (selected != current || line != null)) {
 			x += this.font.width(currentText) + 6;
 			graphics.text(this.font, "->", x, y + 4, GRAY, true);
 			x += this.font.width("->") + 6;
@@ -257,7 +331,9 @@ public class EditMaterialScreen extends Screen {
 			}
 		}
 		if (query.isBlank()) {
-			graphics.text(this.font, "Pick an item to swap in. The amount stays the same.", left, RESULTS_TOP + 5, GRAY, true);
+			graphics.text(this.font, line == null
+				? "Pick an item to swap in. The amount stays the same."
+				: "Type what this line meant, then pick the item.", left, RESULTS_TOP + 5, GRAY, true);
 		} else if (results.isEmpty()) {
 			graphics.text(this.font, "No items match \"" + query.strip() + "\"", left, RESULTS_TOP + 5, GRAY, true);
 		}

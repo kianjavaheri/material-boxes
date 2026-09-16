@@ -18,6 +18,19 @@ import org.jspecify.annotations.Nullable;
 public final class MaterialParser {
 	public record Result(Map<Item, Integer> materials, List<String> unresolved) {}
 
+	/**
+	 * An unrecognized line pulled apart, so it can be fixed by hand: the amount it gave, and the text that should have
+	 * been an item name. The amount is kept as items and stacks because "2 sb" means different totals for different
+	 * items.
+	 */
+	public record Line(double items, double stacks, String name) {
+		/** What this line adds up to for {@code item}, at least 1. */
+		public int countFor(Item item) {
+			long count = Math.round(items + stacks * item.getDefaultMaxStackSize());
+			return (int) Math.max(1, Math.min(Integer.MAX_VALUE, count));
+		}
+	}
+
 	private static final Pattern PRODUCT = Pattern.compile("(\\d+)\\s*[x×*]\\s*(\\d+)");
 	private static final String UNITS = "shulker\\s*box(?:es)?|shulkers?|sbs?|double\\s*chests?|dcs?|stacks?|st";
 	/**
@@ -34,6 +47,8 @@ public final class MaterialParser {
 	// A colon is only a separator when followed by whitespace, so namespaced ids like "minecraft:stone" survive. "of" is
 	// only filler at the start ("2 stacks of stone"), so "Block of Iron" keeps it.
 	private static final Pattern FILLER = Pattern.compile("(?i)(?:^|\\s)(?:x|and)(?=\\s|$)|^\\s*of(?=\\s|$)|[+=×]|:(?=\\s|$)|\\s-\\s|^-|-$");
+	/** The same, but keeping "and", so an item named with it ("Flint and Steel") is still itself. */
+	private static final Pattern FILLER_KEEPING_AND = Pattern.compile("(?i)(?:^|\\s)x(?=\\s|$)|^\\s*of(?=\\s|$)|[+=×]|:(?=\\s|$)|\\s-\\s|^-|-$");
 
 	private MaterialParser() {}
 
@@ -111,7 +126,7 @@ public final class MaterialParser {
 				Parsed p;
 				if (e[1] != null) {
 					Amount a = amount(e[1], true);
-					p = new Parsed(source, a.items, a.stacks, false);
+					p = new Parsed(source, source, a.items, a.stacks, false);
 				} else {
 					p = freeForm(source, true);
 				}
@@ -119,11 +134,11 @@ public final class MaterialParser {
 					// No amount: a heading or a note.
 					continue;
 				}
-				Item item = p.name.isBlank() ? null : ItemResolver.resolve(p.name);
+				Item item = itemFor(p);
 				if (item == null && p.usedUnit) {
 					// "4 Shulker Box" and "8 Shulker Shell" name items; they aren't amounts in shulker boxes.
 					Parsed plain = freeForm(source, false);
-					Item plainItem = plain == null || plain.name.isBlank() ? null : ItemResolver.resolve(plain.name);
+					Item plainItem = plain == null ? null : itemFor(plain);
 					if (plainItem != null) {
 						p = plain;
 						item = plainItem;
@@ -142,6 +157,16 @@ public final class MaterialParser {
 		return new Result(out, unresolved);
 	}
 
+	/** Splits one line the way {@link #parse} does, for fixing an unrecognized line by hand. */
+	public static Line split(String line) {
+		Parsed parsed = freeForm(line, true);
+		if (parsed == null) {
+			return new Line(1, 0, line.strip());
+		}
+		// The name keeping "and" is closer to what the person typed, so it's the better thing to put in a search box.
+		return new Line(parsed.items, parsed.stacks, parsed.andName);
+	}
+
 	/** Formats materials as "count item_id" lines, the canonical form shown in the editor. */
 	public static String format(Map<Item, Integer> materials) {
 		StringBuilder sb = new StringBuilder();
@@ -149,9 +174,27 @@ public final class MaterialParser {
 		return sb.toString();
 	}
 
-	private record Parsed(String name, double items, double stacks, boolean usedUnit) {}
+	/** {@code andName} is {@code name} with "and" left in, tried second so "64 stone and" still finds Stone. */
+	private record Parsed(String name, String andName, double items, double stacks, boolean usedUnit) {}
 
 	private record Amount(boolean found, double items, double stacks, boolean usedUnit, String rest) {}
+
+	/** What's left of an entry once its amount, filler words and brackets are gone: the item's name. */
+	private static String clean(String rest, Pattern filler) {
+		return filler.matcher(rest).replaceAll(" ").replaceAll("[()\\[\\]\"]", " ").replaceAll("\\s+", " ").strip();
+	}
+
+	/**
+	 * The item an entry names. The name without filler words is tried first, then the one keeping "and", so both
+	 * "64 stone and" and "1 Flint and Steel" resolve.
+	 */
+	private static @Nullable Item itemFor(Parsed parsed) {
+		Item item = parsed.name.isBlank() ? null : ItemResolver.resolve(parsed.name);
+		if (item == null && !parsed.andName.equals(parsed.name) && !parsed.andName.isBlank()) {
+			item = ItemResolver.resolve(parsed.andName);
+		}
+		return item;
+	}
 
 	/** A free-form entry, or null if it has no amount. With {@code units} off, "stacks" and the like are part of the name. */
 	private static @Nullable Parsed freeForm(String text, boolean units) {
@@ -169,8 +212,7 @@ public final class MaterialParser {
 		if (!a.found) {
 			return null;
 		}
-		String name = FILLER.matcher(a.rest).replaceAll(" ").replaceAll("[()\\[\\]\"]", " ").replaceAll("\\s+", " ").strip();
-		return new Parsed(name, a.items, a.stacks, a.usedUnit);
+		return new Parsed(clean(a.rest, FILLER), clean(a.rest, FILLER_KEEPING_AND), a.items, a.stacks, a.usedUnit);
 	}
 
 	/**

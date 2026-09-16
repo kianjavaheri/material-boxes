@@ -6,13 +6,13 @@ Open it with **B**, `/materials`, or the **Materials List...** button next to an
 
 - **Title:** the current list's name, and `(unsaved changes)` if it differs from its [saved copy](saved-lists.md).
 - **Import panel** (left): paste or load a list. See [Importing a material list](importing-lists.md). Its **Replace / Add to List / Litematica** buttons sit on the same line as the list's buttons. The small **key button** in its top-right corner holds the Anthropic API key used for screenshot import. **Hide Import** / **Show Import** collapses or opens the panel. Your choice is remembered, and the panel opens by itself when the list is empty, after Clear, or when you drop a file on the window. On a narrow window the panel covers the list instead of sitting beside it, and it closes after a successful import so you can see the result.
-- **Header:** `Materials (55)` plus the **Copy** and **Clear** buttons.
+- **Header:** `Materials (55)` plus the **Share** and **Clear** buttons.
 - **Search box and Sort button.**
 - **Box line:**
   - how many Material Boxes you have
   - a red warning if your boxes need more empty slots (`Add Material Boxes: 34 more slots needed`)
   - a hint to add one if you have none
-- **The list:** one row per material, with a checkbox for [crossing it off](#crossing-off-a-material) and `stored / needed`.
+- **The list:** one row per material, with a checkbox for [crossing it off](#crossing-off-a-material) and `stored / needed`. Any [unrecognized import lines](importing-lists.md#pasting-text) follow at the end, in red behind a barrier icon; click one to pick the item it meant.
 - **Bottom buttons:** **Lists...** ([saved lists](saved-lists.md)), **Boxes...** ([the Boxes screen](material-boxes.md#the-boxes-screen)), **Done**, and a small comparator button that opens the [settings](settings-and-controls.md#settings-screen).
 
 ## Reading the list
@@ -60,23 +60,15 @@ You can also click the material and use **Remove** in the editor.
 Click the **checkbox** at the start of a row to cross that material off without removing it, for example once you've started building with it. A crossed-off material:
 - stays on the list, grayed out and crossed out, with its checkbox filled in
 - isn't highlighted in your Material Boxes, and gets no ghost slots
-- isn't counted as missing, so it leaves the [HUD](hud.md) and what **Copy** copies
+- isn't counted as missing, so it leaves the [HUD](hud.md) and what **Copy What's Missing** copies
 
 Click the checkbox again to need it again. Adding more of the same item with **Add to List** un-crosses it too. Crossing off is saved with the list, and doesn't count as an unsaved change to a [saved list](saved-lists.md).
 
 To hide the highlights for every material at once, use [Hide Highlights](material-boxes.md#hiding-the-highlights).
 
-## Copy
+## Share
 
-**Copy** puts what's still missing on your clipboard, to share with friends helping you gather:
-
-```
-Still needed for Axolotl Globe:
-38 Big Dripleaf
-30 Prismarine Bricks
-```
-
-The format is itself a material list, so it can be pasted straight back into Material Boxes. An item that's on the list twice is copied once, with both amounts counted.
+**Share** opens the [sharing screen](sharing-lists.md), which can hand this list to someone else as a one-line share code, as plain text, or as a `.txt` file. It can also copy just what your Material Boxes are still missing, as a shopping list for friends helping you gather.
 
 ## Clear
 
