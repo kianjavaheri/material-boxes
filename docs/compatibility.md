@@ -4,7 +4,7 @@
 
 | | |
 |---|---|
-| Minecraft | 26.2 |
+| Minecraft | 26.3 |
 | Mod loader | Fabric Loader 0.19.5 or newer |
 | Required mod | Fabric API |
 | Java | 25 |

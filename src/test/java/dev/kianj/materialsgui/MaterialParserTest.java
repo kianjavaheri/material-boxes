@@ -41,7 +41,7 @@ class MaterialParserTest {
 		SharedConstants.tryDetectVersion();
 		Bootstrap.bootStrap();
 		// In game, item components (max stack size, names) are bound when registries load; do the same here.
-		BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(VanillaRegistries.createLookup())
+		BuiltInRegistries.DATA_COMPONENT_INITIALIZERS.build(VanillaRegistries.createWorldLookup())
 			.forEach(DataComponentInitializers.PendingComponents::apply);
 	}
 

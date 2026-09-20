@@ -1,5 +1,6 @@
 package dev.kianj.materialsgui.screen;
 
+import com.mojang.blaze3d.Blaze3D;
 import dev.kianj.materialsgui.data.Project;
 import dev.kianj.materialsgui.data.ProjectStore;
 import dev.kianj.materialsgui.data.SavedLists;
@@ -14,7 +15,6 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -129,7 +129,7 @@ public class ShareScreen extends Screen {
 			setStatus("Couldn't open the exports folder: " + e.getMessage(), RED);
 			return;
 		}
-		Util.getPlatform().openPath(dir);
+		Blaze3D.openPath(dir);
 		setStatus("Opened config/materialsgui/exports.", GRAY);
 	}
 

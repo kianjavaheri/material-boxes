@@ -18,6 +18,8 @@ Paste your material list (or load a Litematica export), mark chests, barrels or 
 
 **Client-side only.** Works on vanilla and modded servers without installing anything there. Requires **Fabric API**. **Mod Menu** is optional.
 
+**Minecraft 26.3.** For 26.2, use the 1.0.x files.
+
 **Good to know**
 - To keep counts current, the mod briefly opens nearby Material Boxes in the background, and other players see and hear them open. Turn off **Auto-refresh boxes** in the settings on servers that don't allow this.
 - Screenshot import is optional. It sends the screenshot you drop to Anthropic's API using your own API key, and only then. The mod makes no other network connections.

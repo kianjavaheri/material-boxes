@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Updated for Minecraft 26.3.** Requires Fabric API for 26.3. For Minecraft 26.2, use the 1.0.x releases; that version is maintained on the `mc/26.2` branch.
+
+- 26.3 replaced GLFW with SDL, which renumbered the mouse buttons and key codes. Shift-click routing, right-click to remove a material, the cross-off checkbox and the shulker box preview all read those numbers, and are updated.
 - **Share a list.** The Materials List's **Copy** button is now **Share**, which opens a screen with four ways to hand a list to someone:
   - **Copy Share Code**: the whole list as one `MBOX1:` line, compressed so a 200-material list still fits in a chat message. Unlike plain text it carries the list's name, its crossed-off marks and its replacements.
   - **Copy as Text**: the plain `count item` list, with the share code along for the ride in a comment.

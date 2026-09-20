@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-**Material Boxes** is a client-only Fabric mod for Minecraft 26.2 (Java 25, Fabric Loader 0.19.5+, Fabric API). It turns a build's material list into color-coded "Material Boxes": chests, barrels and shulker boxes whose slots show what's missing. It works on servers that don't have the mod installed. The display name is "Material Boxes", but the mod id and package are `materialsgui` (`dev.kianj.materialsgui`). Keep the id, because config and save paths depend on it. User-facing feature docs are in `docs/`, the CurseForge page text is in `release/CURSEFORGE.md`, and the changelog (used for GitHub release notes and CurseForge's changelog field) is in `release/CHANGELOG.md`.
+**Material Boxes** is a client-only Fabric mod for Minecraft 26.3 (Java 25, Fabric Loader 0.19.5+, Fabric API). It turns a build's material list into color-coded "Material Boxes": chests, barrels and shulker boxes whose slots show what's missing. It works on servers that don't have the mod installed. The display name is "Material Boxes", but the mod id and package are `materialsgui` (`dev.kianj.materialsgui`). Keep the id, because config and save paths depend on it. User-facing feature docs are in `docs/`, the CurseForge page text is in `release/CURSEFORGE.md`, and the changelog (used for GitHub release notes and CurseForge's changelog field) is in `release/CHANGELOG.md`.
 
 ## Working in this repo
 
@@ -23,11 +23,11 @@ export JAVA_HOME=$PWD/.jdk/jdk-25.0.4.1+1/Contents/Home
 - `./gradlew runClientGameTest`: the in-world client game test. It opens a real game window, plays one long scenario in a fresh singleplayer world, and writes screenshots to `build/run/clientGameTest/screenshots/`.
 - `./gradlew prodClientGameTest`: the same game test against the built release jar in a production Fabric install, not the dev classes.
 - `./gradlew prodClientGameTestWithMods -PextraModsDir="/path/to/mods"`: the same, alongside another mods folder, which must include Fabric API.
-- `./gradlew genSources`: decompiles Minecraft into `.gradle/loom-cache/minecraftMaven/.../minecraft-merged-*-sources.jar`. Unzip it to grep real 26.2 APIs.
+- `./gradlew genSources`: decompiles Minecraft into `.gradle/loom-cache/minecraftMaven/.../minecraft-merged-*-sources.jar`. Unzip it to grep real 26.3 APIs. Both the current and the previous version stay in the cache, so a version bump can be diffed class by class.
 
-There's no linter. The version lives in `gradle.properties` (`version=1.0.0+26.2`).
+There's no linter. The version lives in `gradle.properties` (`version=1.1.0+26.3`). Older Minecraft versions live on their own branches (`mc/26.2`); `main` always tracks the newest.
 
-## Minecraft 26.2 specifics
+## Minecraft 26.3 specifics
 
 Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. Many APIs differ from older versions or from memory, so **check the decompiled sources before using a Minecraft API**. Ones this code relies on:
 
@@ -35,6 +35,18 @@ Minecraft 26.x is unobfuscated and uses Mojang names, so there are no mappings. 
 - Screens: `mc.gui.setScreen(...)`, `mc.gui.screen()`, `mc.gui.hud.isHidden()` (F1), and `mc.resizeGui()`.
 - Clicks: `ContainerInput` (not `ClickType`) and `MultiPlayerGameMode.handleContainerInput(...)`.
 - Input: `MouseButtonEvent` / `KeyEvent` records.
+- Opening a folder in the file manager: `Blaze3D.openPath(Path)`, not `Util.getPlatform().openPath(...)`.
+
+**26.3 replaced GLFW with SDL, which renumbered every input code.** Nothing about this fails to compile, so never hardcode an input number; use the `InputConstants` names, which are correct per version:
+
+| | 26.2 (GLFW) | 26.3 (SDL) |
+|---|---|---|
+| `MOUSE_BUTTON_LEFT` / `MOUSE_BUTTON_RIGHT` | 0 / 1 | 1 / 3 |
+| `KEY_ESCAPE` / `KEY_RETURN` / `KEY_BACKSPACE` | 256 / 257 / 259 | 41 / 40 / 42 |
+| `MOD_SHIFT` | 1 | 3 |
+| Key-binding type | `InputConstants.Type.KEYSYM` | `InputConstants.Type.KEYBOARD` |
+
+A wrong button number is silent and asymmetric: the mod's own click handling still fires while vanilla's does nothing (or the wrong thing), so shift-click routing looked fine on 26.3 while the vanilla fallthrough for unlisted items quietly stopped working. The game test's unlisted-item shift-click is what caught it.
 
 ## Architecture
 

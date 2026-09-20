@@ -1,6 +1,6 @@
 # Material Boxes documentation
 
-Material Boxes is a client-side Fabric mod for Minecraft 26.2 that makes gathering materials for a build easier. You load your build's material list, mark storage containers as **Material Boxes**, and the mod shows you what's still missing: which slots to fill, how much is stored, and what you still need to collect.
+Material Boxes is a client-side Fabric mod for Minecraft 26.3 that makes gathering materials for a build easier. You load your build's material list, mark storage containers as **Material Boxes**, and the mod shows you what's still missing: which slots to fill, how much is stored, and what you still need to collect.
 
 It's client-only, so it works on servers that don't have it installed.
 

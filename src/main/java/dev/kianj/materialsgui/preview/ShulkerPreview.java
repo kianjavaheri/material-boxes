@@ -75,14 +75,14 @@ public final class ShulkerPreview {
 	private static boolean onClick(AbstractContainerScreen<?> cs, MouseButtonEvent event) {
 		if (isOpen(cs)) {
 			// View-only: clicks inside do nothing; right-click or clicking outside closes it.
-			if (event.button() == 1 || !inside(cs, event.x(), event.y())) {
+			if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT || !inside(cs, event.x(), event.y())) {
 				close();
 			}
 			swallowRelease = true;
 			return false;
 		}
 		// Only a plain right-click with nothing held; shift-right-click and left-click keep their vanilla behaviour.
-		if (event.button() != 1 || event.hasShiftDown() || !cs.getMenu().getCarried().isEmpty()) {
+		if (event.button() != InputConstants.MOUSE_BUTTON_RIGHT || event.hasShiftDown() || !cs.getMenu().getCarried().isEmpty()) {
 			return true;
 		}
 		Slot hovered = ((AbstractContainerScreenAccessor) cs).materialsgui$getHoveredSlot();

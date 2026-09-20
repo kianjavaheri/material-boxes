@@ -1,6 +1,6 @@
 # Material Boxes
 
-A client-side Fabric mod for Minecraft 26.2 that turns a build's material list into a checklist you can see in the world.
+A client-side Fabric mod for Minecraft 26.3 that turns a build's material list into a checklist you can see in the world.
 
 Load your list by pasting it, importing a Litematica export, or letting Claude read a screenshot. Then mark chests, barrels or shulker boxes as **Material Boxes**. Their slots are color-coded: red for what's missing, yellow for partial stacks, green for done. Shift-click and **Deposit All** put each item in its slot, and a HUD shows what's still needed and how much you're carrying. Box counts refresh on their own when you're nearby, even if someone else added items while you were away. Named lists are saved across worlds. The mod only uses normal player actions, so it works on any server without being installed there.
 
@@ -22,7 +22,7 @@ Load your list by pasting it, importing a Litematica export, or letting Claude r
 
 ## Requirements
 
-- Minecraft 26.2
+- Minecraft 26.3
 - Fabric Loader 0.19.5 or newer
 - [Fabric API](https://modrinth.com/mod/fabric-api)
 - Java 25

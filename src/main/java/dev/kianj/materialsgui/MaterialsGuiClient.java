@@ -43,9 +43,9 @@ public class MaterialsGuiClient implements ClientModInitializer {
 
 		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("materialsgui", "main"));
 		openKey = KeyMappingHelper.registerKeyMapping(
-			new KeyMapping("key.materialsgui.open", InputConstants.Type.KEYSYM, InputConstants.KEY_B, category));
+			new KeyMapping("key.materialsgui.open", InputConstants.Type.KEYBOARD, InputConstants.KEY_B, category));
 		hudKey = KeyMappingHelper.registerKeyMapping(
-			new KeyMapping("key.materialsgui.hud", InputConstants.Type.KEYSYM, InputConstants.KEY_H, category));
+			new KeyMapping("key.materialsgui.hud", InputConstants.Type.KEYBOARD, InputConstants.KEY_H, category));
 
 		ClientTickEvents.END_CLIENT_TICK.register(BoxValidator::tick);
 		ClientTickEvents.END_CLIENT_TICK.register(BoxRefresher::tick);
