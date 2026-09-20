@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
-**Updated for Minecraft 26.3.** Requires Fabric API for 26.3. For Minecraft 26.2, use the 1.0.x releases; that version is maintained on the `mc/26.2` branch.
+**Updated for Minecraft 26.3.** Requires Fabric API for 26.3. The same 1.1.0 features are released for Minecraft 26.2 as a separate file (`+26.2`), maintained on the `mc/26.2` branch.
 
 - 26.3 replaced GLFW with SDL, which renumbered the mouse buttons and key codes. Shift-click routing, right-click to remove a material, the cross-off checkbox and the shulker box preview all read those numbers, and are updated.
 - **Share a list.** The Materials List's **Copy** button is now **Share**, which opens a screen with four ways to hand a list to someone:
