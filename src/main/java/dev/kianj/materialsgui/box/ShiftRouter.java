@@ -1,5 +1,6 @@
 package dev.kianj.materialsgui.box;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.kianj.materialsgui.data.BoxKey;
 import dev.kianj.materialsgui.data.Layout;
 import dev.kianj.materialsgui.data.ModConfig;
@@ -30,7 +31,7 @@ public final class ShiftRouter {
 	public static boolean handle(AbstractContainerScreen<?> screen, MouseButtonEvent event) {
 		BoxKey key = BoxTracker.keyFor(screen);
 		// With highlights hidden the target slots can't be seen, so shift-click does what it normally does.
-		if (key == null || event.button() != 0 || !event.hasShiftDown() || ProjectStore.project().indexOfBox(key) < 0
+		if (key == null || event.button() != InputConstants.MOUSE_BUTTON_LEFT || !event.hasShiftDown() || ProjectStore.project().indexOfBox(key) < 0
 			|| !ModConfig.get().highlightSlots) {
 			return false;
 		}

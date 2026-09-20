@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 - **Share a list.** The Materials List's **Copy** button is now **Share**, which opens a screen with four ways to hand a list to someone:
   - **Copy Share Code**: the whole list as one `MBOX1:` line, compressed so a 200-material list still fits in a chat message. Unlike plain text it carries the list's name, its crossed-off marks and its replacements.

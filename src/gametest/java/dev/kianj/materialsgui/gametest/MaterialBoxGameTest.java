@@ -68,12 +68,12 @@ import net.minecraft.world.level.block.entity.ChestBlockEntity;
  * Material Box, shift-click items in, move items by hand, and break the box.
  */
 public class MaterialBoxGameTest implements FabricClientGameTest {
-	private static final int ESCAPE = 256;
-	private static final int ENTER = 257;
-	private static final int BACKSPACE = 259;
-	private static final int GLFW_RELEASE = 0;
-	private static final int GLFW_PRESS = 1;
-	private static final int GLFW_MOD_SHIFT = 1;
+	private static final int ESCAPE = InputConstants.KEY_ESCAPE;
+	private static final int ENTER = InputConstants.KEY_RETURN;
+	private static final int BACKSPACE = InputConstants.KEY_BACKSPACE;
+	/** What {@code MouseHandler.onButton} reads as a press and a release; not a key code. */
+	private static final int MOUSE_RELEASE = 0;
+	private static final int MOUSE_PRESS = 1;
 
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
@@ -266,7 +266,7 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 			ctx.waitForScreen(InventoryScreen.class);
 			ctx.waitTicks(2);
 			hoverSlotWith(ctx, Items.SHULKER_BOX);
-			ctx.getInput().pressMouse(1);
+			ctx.getInput().pressMouse(InputConstants.MOUSE_BUTTON_RIGHT);
 			ctx.waitTicks(3);
 			ctx.runOnClient(mc -> {
 				if (!ShulkerPreview.isOpen(mc.gui.screen())) {
@@ -450,7 +450,7 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 				return new int[] {search.getX(), search.getY() + 37};
 			});
 			// The unrecognized line is the row after the four materials.
-			clickAt(ctx, listRows[0] + 60, listRows[1] + 4 * 18 + 9, 0);
+			clickAt(ctx, listRows[0] + 60, listRows[1] + 4 * 18 + 9, InputConstants.MOUSE_BUTTON_LEFT);
 			ctx.waitForScreen(EditMaterialScreen.class);
 			ctx.waitTicks(2);
 			ctx.takeScreenshot("12d-fix-unrecognized-line");
@@ -732,7 +732,7 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 			});
 			int glassRowY = list[1] + 18 + 9;
 			// The checkbox at the start of a row crosses the material off without removing it, and back.
-			clickAt(ctx, list[0] + 4, glassRowY, 0);
+			clickAt(ctx, list[0] + 4, glassRowY, InputConstants.MOUSE_BUTTON_LEFT);
 			ctx.runOnClient(mc -> {
 				Project.MaterialEntry glass = ProjectStore.project().materials.get(1);
 				if (!glass.item.equals("minecraft:glass") || !glass.crossedOff || ProjectStore.layout().needed(Items.GLASS) != 0
@@ -742,13 +742,13 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 			});
 			expectMaterials(ctx, 2);
 			ctx.takeScreenshot("17b-crossed-off");
-			clickAt(ctx, list[0] + 4, glassRowY, 0);
+			clickAt(ctx, list[0] + 4, glassRowY, InputConstants.MOUSE_BUTTON_LEFT);
 			ctx.runOnClient(mc -> {
 				if (ProjectStore.project().materials.get(1).crossedOff || ProjectStore.layout().needed(Items.GLASS) == 0) {
 					throw new AssertionError("Clicking the checkbox again should make Glass needed again");
 				}
 			});
-			clickAt(ctx, list[0] + 60, glassRowY, 1);
+			clickAt(ctx, list[0] + 60, glassRowY, InputConstants.MOUSE_BUTTON_RIGHT);
 			expectMaterials(ctx, 2);
 			ctx.getInput().pressKey(ESCAPE);
 			ctx.waitTicks(2);
@@ -758,9 +758,9 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 				}
 			});
 			expectMaterials(ctx, 2);
-			clickAt(ctx, list[0] + 60, glassRowY, 1);
+			clickAt(ctx, list[0] + 60, glassRowY, InputConstants.MOUSE_BUTTON_RIGHT);
 			ctx.takeScreenshot("17a-confirm-remove");
-			clickAt(ctx, list[2] - 7, glassRowY - 1, 0);
+			clickAt(ctx, list[2] - 7, glassRowY - 1, InputConstants.MOUSE_BUTTON_LEFT);
 			expectMaterials(ctx, 1);
 			ctx.runOnClient(mc -> {
 				if (ProjectStore.project().materials.stream().anyMatch(m -> m.item.equals("minecraft:glass"))) {
@@ -921,7 +921,7 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 		}
 	}
 
-	/** Clicks at a GUI position with a real mouse button (0 left, 1 right). */
+	/** Clicks at a GUI position with a real mouse button. */
 	private static void clickAt(ClientGameTestContext ctx, int guiX, int guiY, int button) {
 		double scale = ctx.computeOnClient(mc -> (double) mc.getWindow().getScreenWidth() / mc.getWindow().getGuiScaledWidth());
 		// Minecraft ignores the first cursor move after a screen opens, so nudge it first.
@@ -1059,8 +1059,8 @@ public class MaterialBoxGameTest implements FabricClientGameTest {
 		ctx.runOnClient(mc -> {
 			MouseHandlerAccessor mouse = (MouseHandlerAccessor) mc.mouseHandler;
 			long window = mc.getWindow().handle();
-			mouse.invokeOnButton(window, new MouseButtonInfo(0, GLFW_MOD_SHIFT), GLFW_PRESS);
-			mouse.invokeOnButton(window, new MouseButtonInfo(0, GLFW_MOD_SHIFT), GLFW_RELEASE);
+			mouse.invokeOnButton(window, new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, InputConstants.MOD_SHIFT), MOUSE_PRESS);
+			mouse.invokeOnButton(window, new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, InputConstants.MOD_SHIFT), MOUSE_RELEASE);
 		});
 		ctx.waitTicks(2);
 	}

@@ -503,7 +503,7 @@ public class MaterialsScreen extends Screen {
 		// A right-clicked row waits for its X to be clicked; any other click keeps the material.
 		Project.MaterialEntry pending = pendingRemoval;
 		pendingRemoval = null;
-		if (pending != null && event.button() == 0 && onRemoveButton(rows, pending, event.x(), event.y())) {
+		if (pending != null && event.button() == InputConstants.MOUSE_BUTTON_LEFT && onRemoveButton(rows, pending, event.x(), event.y())) {
 			project.materials.remove(pending);
 			ProjectStore.changed();
 			setStatus("Removed " + displayName(pending) + " from the list.", GRAY);
@@ -522,26 +522,26 @@ public class MaterialsScreen extends Screen {
 			return true;
 		}
 		if (rows.get(position).index < 0) {
-			if (event.button() == 0) {
+			if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
 				this.minecraft.gui.setScreen(new EditMaterialScreen(this, rows.get(position).name.getString()));
 				return true;
 			}
-			if (event.button() == 1) {
+			if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
 				dropUnresolved(rows.get(position).name.getString());
 				return true;
 			}
 			return false;
 		}
 		int index = rows.get(position).index;
-		if (event.button() == 0 && onCheckbox(event.x())) {
+		if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && onCheckbox(event.x())) {
 			toggleCrossedOff(project.materials.get(index));
 			return true;
 		}
-		if (event.button() == 0) {
+		if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
 			this.minecraft.gui.setScreen(new EditMaterialScreen(this, index));
 			return true;
 		}
-		if (event.button() == 1) {
+		if (event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
 			pendingRemoval = project.materials.get(index);
 			return true;
 		}
